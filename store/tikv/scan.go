@@ -135,7 +135,7 @@ func (s *Scanner) resolveCurrentLock(bo *Backoffer, current *pb.KvPair) error {
 }
 
 func (s *Scanner) getData(bo *Backoffer) error {
-	log.Debugf("txn getData nextStartKey[%q], txn %d", s.nextStartKey, s.startTS())
+	log.Infof("txn getData nextStartKey[%q], txn %d", s.nextStartKey, s.startTS())
 	sender := NewRegionRequestSender(s.snapshot.store.regionCache, s.snapshot.store.client)
 
 	for {
@@ -185,6 +185,12 @@ func (s *Scanner) getData(bo *Backoffer) error {
 		kvPairs := cmdScanResp.Pairs
 		// Check if kvPair contains error, it should be a Lock.
 		for _, pair := range kvPairs {
+			if pair.GetError() == nil {
+				log.Infof("***** Scanner got key: \"%q\", value: \"%q\"", pair.Key, pair.Value)
+			} else {
+				log.Infof("***** Scanner got err: %v", pair.GetError())
+			}
+
 			if keyErr := pair.GetError(); keyErr != nil {
 				lock, err := extractLockFromKeyErr(keyErr)
 				if err != nil {
