@@ -639,6 +639,7 @@ func iterRecords(sessCtx sessionctx.Context, retriever kv.Retriever, t table.Tab
 	prefix := t.RecordPrefix()
 	keyUpperBound := prefix.PrefixNext()
 
+	log.Infof("**** Admin: Iter on [%q, %q)", startKey, keyUpperBound)
 	it, err := retriever.Iter(startKey, keyUpperBound)
 	if err != nil {
 		return errors.Trace(err)
