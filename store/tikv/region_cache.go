@@ -15,6 +15,7 @@ package tikv
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -150,19 +151,21 @@ func (c *RegionCache) LocateKey(bo *Backoffer, key []byte) (*KeyLocation, error)
 	c.mu.RUnlock()
 
 	r, err := c.loadRegion(bo, key)
-	if err != nil {
+	if err != nil && r == nil {
 		return nil, errors.Trace(err)
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.insertRegionToCache(r)
+	if err == nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.insertRegionToCache(r)
+	}
 
 	return &KeyLocation{
 		Region:   r.VerID(),
 		StartKey: r.StartKey(),
 		EndKey:   r.EndKey(),
-	}, nil
+	}, err
 }
 
 // LocateRegionByID searches for the region with ID.
@@ -338,8 +341,11 @@ func (c *RegionCache) loadRegion(bo *Backoffer, key []byte) (*Region, error) {
 		meta, leader, err := c.pdClient.GetRegion(bo, key)
 		metrics.TiKVRegionCacheCounter.WithLabelValues("get_region", metrics.RetLabel(err)).Inc()
 		if err != nil {
-			backoffErr = errors.Errorf("loadRegion from PD failed, key: %q, err: %v", key, err)
-			continue
+			// Don't retry if we meet decode error.
+			if !strings.Contains(err.Error(), "insufficient bytes to decode value") {
+				backoffErr = errors.Errorf("loadRegion from PD failed, key: %q, err: %v", key, err)
+				continue
+			}
 		}
 		if meta == nil {
 			backoffErr = errors.Errorf("region not found for key %q", key)
@@ -355,7 +361,7 @@ func (c *RegionCache) loadRegion(bo *Backoffer, key []byte) (*Region, error) {
 		if leader != nil {
 			region.SwitchPeer(leader.GetStoreId())
 		}
-		return region, nil
+		return region, err
 	}
 }
 

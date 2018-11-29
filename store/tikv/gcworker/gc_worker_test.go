@@ -14,6 +14,8 @@
 package gcworker
 
 import (
+	"bytes"
+	"github.com/pingcap/tidb/util/codec"
 	"math"
 	"strconv"
 	"testing"
@@ -199,4 +201,43 @@ func (s *testGCWorkerSuite) TestDoGC(c *C) {
 	c.Assert(err, IsNil)
 	err = s.gcWorker.doGC(ctx, 20)
 	c.Assert(err, IsNil)
+}
+
+func (s *testGCWorkerSuite) TestUpperBoundOfNondecodableKey(c *C) {
+	var rawKeys = [][]byte{
+		[]byte(""),
+		[]byte("\x00"),
+		[]byte("1"),
+		[]byte("111111\x00\x00\xff"),
+		[]byte("111111\x00\x00\xfe"),
+		[]byte("111111\x00\x00\xfe\x00"),
+		[]byte("111111\x00\x00\x88"),
+		[]byte("\x00\x00\x01\x00\x01\x00\x00\x01\xfe\x01"),
+		[]byte("12345678\xff12345678"),
+		[]byte("12345678\xff1234\x00\x00\x00\x00"),
+		[]byte("12345678\xff1234\x00\x00\x00\x00\xff"),
+		[]byte("12345678\xff1234\x00\x00\x00\x00\xfd"),
+		[]byte("12345678\xfe1234\x00\x00\x00\x00\xfd"),
+	}
+	var results = [][]byte{
+		[]byte(""),
+		[]byte(""),
+		[]byte("1"),
+		[]byte("111111\x00\x00"),
+		[]byte("111111\x00"),
+		[]byte("111111\x00\x00"),
+		[]byte("111111"),
+		[]byte("\x00\x00\x01\x00\x01\x00\x00\x01"),
+		[]byte("1234567812345678"),
+		[]byte("123456781234"),
+		[]byte("123456781234\x00\x00\x00\x00"),
+		[]byte("123456781234\x00\x00"),
+		[]byte("12345678"),
+	}
+
+	for i := range rawKeys {
+		u := upperBoundOfNondecodableKey(rawKeys[i])
+		c.Assert(u, DeepEquals, results[i])
+		c.Assert(bytes.Compare(codec.EncodeBytes([]byte{}, u), rawKeys[i]) >= 0, IsTrue)
+	}
 }

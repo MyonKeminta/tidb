@@ -27,6 +27,8 @@ type codecPDClient struct {
 
 // GetRegion encodes the key before send requests to pd-server and decodes the
 // returned StartKey && EndKey from pd-server.
+// If the region start/end key can be successfully decoded, returns the error and the original metapb.Region whose keys
+// are not decoded.
 func (c *codecPDClient) GetRegion(ctx context.Context, key []byte) (*metapb.Region, *metapb.Peer, error) {
 	encodedKey := codec.EncodeBytes([]byte(nil), key)
 	region, peer, err := c.Client.GetRegion(ctx, encodedKey)
@@ -48,26 +50,26 @@ func processRegionResult(region *metapb.Region, peer *metapb.Peer, err error) (*
 		return nil, nil, nil
 	}
 	err = decodeRegionMetaKey(region)
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-	return region, peer, nil
+	return region, peer, err
 }
 
 func decodeRegionMetaKey(r *metapb.Region) error {
+	var startKey, endKey []byte
+	var err error
 	if len(r.StartKey) != 0 {
-		_, decoded, err := codec.DecodeBytes(r.StartKey, nil)
+		_, startKey, err = codec.DecodeBytes(r.StartKey, nil)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		r.StartKey = decoded
 	}
 	if len(r.EndKey) != 0 {
-		_, decoded, err := codec.DecodeBytes(r.EndKey, nil)
+		_, endKey, err = codec.DecodeBytes(r.EndKey, nil)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		r.EndKey = decoded
 	}
+	// Only update these fields if both startKey and endKey is successfully decoded
+	r.StartKey = startKey
+	r.EndKey = endKey
 	return nil
 }

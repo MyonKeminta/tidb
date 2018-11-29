@@ -364,6 +364,14 @@ func (w *GCWorker) deleteRanges(ctx context.Context, safePoint uint64) error {
 
 			loc, err := w.store.GetRegionCache().LocateKey(bo, startKey)
 			if err != nil {
+				if loc != nil {
+					startKey = upperBoundOfNondecodableKey(loc.EndKey)
+					log.Warnf(
+						"[gc worker] %s found region with nondecodable borders while deleting ranges, region: %v, start key: %+q, end key: %+q, skip to: %+q",
+						w.uuid, loc.Region.GetID(), loc.StartKey, loc.EndKey, startKey,
+					)
+					continue
+				}
 				return errors.Trace(err)
 			}
 
@@ -479,6 +487,14 @@ func (w *GCWorker) resolveLocks(ctx context.Context, safePoint uint64) error {
 		req.ScanLock.StartKey = key
 		loc, err := w.store.GetRegionCache().LocateKey(bo, key)
 		if err != nil {
+			if loc != nil {
+				key = upperBoundOfNondecodableKey(loc.EndKey)
+				log.Warnf(
+					"[gc worker] %s found region with nondecodable borders while resolving locks, region: %v, start key: %+q, end key: %+q, skip to: %+q",
+					w.uuid, loc.Region.GetID(), loc.StartKey, loc.EndKey, key,
+				)
+				continue
+			}
 			return errors.Trace(err)
 		}
 		resp, err := w.store.SendReq(bo, req, loc.Region, tikv.ReadTimeoutMedium)
@@ -592,6 +608,14 @@ func (w *gcTaskWorker) doGCForRange(startKey []byte, endKey []byte, safePoint ui
 		bo := tikv.NewBackoffer(context.Background(), tikv.GcOneRegionMaxBackoff)
 		loc, err := w.store.GetRegionCache().LocateKey(bo, key)
 		if err != nil {
+			if loc != nil {
+				key = upperBoundOfNondecodableKey(loc.EndKey)
+				log.Warnf(
+					"[gc worker] %s found region with nondecodable borders while doing gc, region: %v, start key: %+q, end key: %+q, skip to: %+q",
+					w.identifier, loc.Region.GetID(), loc.StartKey, loc.EndKey, key,
+				)
+				continue
+			}
 			return errors.Trace(err)
 		}
 
@@ -656,9 +680,27 @@ func (w *gcTaskWorker) doGCForRegion(bo *tikv.Backoffer, safePoint uint64, regio
 }
 
 func (w *GCWorker) genNextGCTask(bo *tikv.Backoffer, safePoint uint64, key kv.Key) (*gcTask, error) {
-	loc, err := w.store.GetRegionCache().LocateKey(bo, key)
-	if err != nil {
-		return nil, errors.Trace(err)
+	fmt.Fprintf(os.Stderr, "****** getNextGCTask from key %+q\n", key)
+	var loc *tikv.KeyLocation
+	var err error
+	for {
+		loc, err = w.store.GetRegionCache().LocateKey(bo, key)
+		fmt.Fprintf(os.Stderr, "****** getNextGCTask LocateKey got loc: %v, err: %v\n", loc, err)
+		if err != nil {
+			if loc != nil {
+				key = upperBoundOfNondecodableKey(loc.EndKey)
+				log.Warnf(
+					"[gc worker] %s found region with nondecodable borders while getting next gc task, region: %v, start key: %+q, end key: %+q, skip to: %+q",
+					w.uuid, loc.Region.GetID(), loc.StartKey, loc.EndKey, key,
+				)
+				if len(key) == 0 {
+					return nil, nil
+				}
+				continue
+			}
+			return nil, errors.Trace(err)
+		}
+		break
 	}
 
 	task := &gcTask{
@@ -978,4 +1020,43 @@ func NewMockGCWorker(store tikv.Storage) (*MockGCWorker, error) {
 func (w *MockGCWorker) DeleteRanges(ctx context.Context, safePoint uint64) error {
 	log.Errorf("deleteRanges is called")
 	return w.worker.deleteRanges(ctx, safePoint)
+}
+
+// upperBoundOfNondecodableKey finds the minimal key whose encoded form >= given key
+func upperBoundOfNondecodableKey(key []byte) []byte {
+	res := make([]byte, 0, len(key)+8)
+	group := make([]byte, 0, 8)
+
+	for index, b := range key {
+		if index%9 == 8 {
+			// Trim tailing zeros
+			minGroupLen := 8 - int(0xff-b)
+			if minGroupLen < 0 {
+				minGroupLen = 0
+			}
+			for len(group) > minGroupLen && group[len(group)-1] == 0 {
+				group = group[0 : len(group)-1]
+			}
+			res = append(res, group...)
+
+			if minGroupLen < 8 {
+				if minGroupLen == len(group) && len(key) > index+1 {
+					res = append(res, 0)
+				}
+				return res
+			}
+			group = group[:0]
+		} else {
+			group = append(group, b)
+		}
+	}
+
+	if len(group) > 0 {
+		// Trim tailing zeros
+		for len(group) > 0 && group[len(group)-1] == 0 {
+			group = group[0 : len(group)-1]
+		}
+		res = append(res, group...)
+	}
+	return res
 }
