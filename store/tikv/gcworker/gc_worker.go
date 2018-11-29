@@ -680,12 +680,10 @@ func (w *gcTaskWorker) doGCForRegion(bo *tikv.Backoffer, safePoint uint64, regio
 }
 
 func (w *GCWorker) genNextGCTask(bo *tikv.Backoffer, safePoint uint64, key kv.Key) (*gcTask, error) {
-	fmt.Fprintf(os.Stderr, "****** getNextGCTask from key %+q\n", key)
 	var loc *tikv.KeyLocation
 	var err error
 	for {
 		loc, err = w.store.GetRegionCache().LocateKey(bo, key)
-		fmt.Fprintf(os.Stderr, "****** getNextGCTask LocateKey got loc: %v, err: %v\n", loc, err)
 		if err != nil {
 			if loc != nil {
 				key = upperBoundOfNondecodableKey(loc.EndKey)
