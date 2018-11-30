@@ -342,7 +342,9 @@ func (c *RegionCache) loadRegion(bo *Backoffer, key []byte) (*Region, error) {
 		metrics.TiKVRegionCacheCounter.WithLabelValues("get_region", metrics.RetLabel(err)).Inc()
 		if err != nil {
 			// Don't retry if we meet decode error.
-			if !strings.Contains(err.Error(), "insufficient bytes to decode value") {
+			if !strings.Contains(err.Error(), "insufficient bytes to decode value") &&
+				!strings.Contains(err.Error(), "invalid marker byte") &&
+				!strings.Contains(err.Error(), "invalid padding byte") {
 				backoffErr = errors.Errorf("loadRegion from PD failed, key: %q, err: %v", key, err)
 				continue
 			}

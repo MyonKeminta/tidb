@@ -493,6 +493,9 @@ func (w *GCWorker) resolveLocks(ctx context.Context, safePoint uint64) error {
 					"[gc worker] %s found region with nondecodable borders while resolving locks, region: %v, start key: %+q, end key: %+q, skip to: %+q",
 					w.uuid, loc.Region.GetID(), loc.StartKey, loc.EndKey, key,
 				)
+				if len(key) == 0 {
+					break
+				}
 				continue
 			}
 			return errors.Trace(err)
@@ -776,7 +779,7 @@ func (w *GCWorker) doGCInternal(ctx context.Context, safePoint uint64, concurren
 			key = task.endKey
 		}
 
-		if len(key) == 0 {
+		if len(key) == 0 || task == nil {
 			return nil
 		}
 	}
