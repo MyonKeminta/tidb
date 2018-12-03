@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/juju/errors"
+	pumpcli "github.com/pingcap/tidb-tools/tidb-binlog/pump_client"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta/autoid"
@@ -224,7 +225,7 @@ type SessionVars struct {
 	SnapshotInfoschema interface{}
 
 	// BinlogClient is used to write binlog.
-	BinlogClient interface{}
+	BinlogClient *pumpcli.PumpsClient
 
 	// GlobalVarsAccessor is used to set and get global variables.
 	GlobalVarsAccessor GlobalVarAccessor
@@ -567,6 +568,9 @@ func (s *SessionVars) SetSystemVar(name string, val string) error {
 		s.OptimizerSelectivityLevel = tidbOptPositiveInt32(val, DefTiDBOptimizerSelectivityLevel)
 	case TiDBDisableTxnAutoRetry:
 		s.DisableTxnAutoRetry = TiDBOptOn(val)
+	case TiDBDDLReorgWorkerCount:
+		workerCnt := tidbOptPositiveInt32(val, DefTiDBDDLReorgWorkerCount)
+		SetDDLReorgWorkerCounter(int32(workerCnt))
 	}
 	s.systems[name] = val
 	return nil

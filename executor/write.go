@@ -28,6 +28,7 @@ import (
 	"github.com/pingcap/tidb/table"
 	"github.com/pingcap/tidb/table/tables"
 	"github.com/pingcap/tidb/tablecodec"
+	"github.com/pingcap/tidb/terror"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/chunk"
 	log "github.com/sirupsen/logrus"
@@ -76,7 +77,10 @@ func updateRecord(ctx sessionctx.Context, h int64, oldData, newData []types.Datu
 			newData[i] = v
 		}
 
-		// Rebase auto increment id if the field is changed.
+		cmp, err := newData[i].CompareDatum(sc, &oldData[i])
+		if err != nil {
+			return false, handleChanged, newHandle, 0, errors.Trace(err)
+		}
 		if mysql.HasAutoIncrementFlag(col.Flag) {
 			if newData[i].IsNull() {
 				return false, handleChanged, newHandle, 0,
@@ -87,14 +91,13 @@ func updateRecord(ctx sessionctx.Context, h int64, oldData, newData []types.Datu
 				return false, handleChanged, newHandle, 0, errors.Trace(errTI)
 			}
 			lastInsertID = uint64(val)
-			err := t.RebaseAutoID(ctx, val, true)
-			if err != nil {
-				return false, handleChanged, newHandle, 0, errors.Trace(err)
+			// Rebase auto increment id if the field is changed.
+			if cmp != 0 {
+				err := t.RebaseAutoID(ctx, val, true)
+				if err != nil {
+					return false, handleChanged, newHandle, 0, errors.Trace(err)
+				}
 			}
-		}
-		cmp, err := newData[i].CompareDatum(sc, &oldData[i])
-		if err != nil {
-			return false, handleChanged, newHandle, 0, errors.Trace(err)
 		}
 		if cmp != 0 {
 			changed = true
@@ -162,7 +165,11 @@ func updateRecord(ctx sessionctx.Context, h int64, oldData, newData []types.Datu
 
 	tid := t.Meta().ID
 	ctx.StmtAddDirtyTableOP(DirtyTableDeleteRow, tid, h, nil)
-	ctx.StmtAddDirtyTableOP(DirtyTableAddRow, tid, h, newData)
+	if handleChanged {
+		ctx.StmtAddDirtyTableOP(DirtyTableAddRow, tid, newHandle, newData)
+	} else {
+		ctx.StmtAddDirtyTableOP(DirtyTableAddRow, tid, h, newData)
+	}
 
 	if onDup {
 		sc.AddAffectedRows(2)
@@ -1159,20 +1166,24 @@ func (e *InsertExec) updateDupRow(keys []keyWithDupError, k keyWithDupError, val
 	if err != nil {
 		return errors.Trace(err)
 	}
-	return e.updateDupKeyValues(keys, oldHandle, newHandle, handleChanged, updatedRow)
+	return e.updateDupKeyValues(oldHandle, newHandle, handleChanged, oldRow, updatedRow)
 }
 
 // updateDupKeyValues updates the dupKeyValues for further duplicate key check.
-func (e *InsertExec) updateDupKeyValues(keys []keyWithDupError, oldHandle int64,
-	newHandle int64, handleChanged bool, updatedRow []types.Datum) error {
+func (e *InsertExec) updateDupKeyValues(oldHandle int64, newHandle int64, handleChanged bool,
+	oldRow []types.Datum, updatedRow []types.Datum) error {
+	// Delete key-values belong to the old row.
+	cleanupRows, err := getKeysNeedCheck(e.ctx, e.Table, [][]types.Datum{oldRow})
+	if err != nil {
+		return errors.Trace(err)
+	}
+	for _, del := range cleanupRows[0] {
+		delete(e.dupKeyValues, string(del.key))
+	}
 	// There is only one row per update.
 	fillBackKeysInRows, err := getKeysNeedCheck(e.ctx, e.Table, [][]types.Datum{updatedRow})
 	if err != nil {
 		return errors.Trace(err)
-	}
-	// Delete key-values belong to the old row.
-	for _, del := range keys {
-		delete(e.dupKeyValues, string(del.key))
 	}
 	// Fill back new key-values of the updated row.
 	if handleChanged {
@@ -1834,7 +1845,9 @@ func (e *ReplaceExec) exec(ctx context.Context, rows [][]types.Datum) (types.Dat
 		}
 		oldRow, err1 := e.Table.Row(e.ctx, h)
 		if err1 != nil {
-			return nil, errors.Trace(err1)
+			rowStr, err := types.DatumsToString(row, true)
+			terror.Log(err)
+			return nil, errors.Annotatef(err1, "[replace] the %dth of total %d rows, handle %d, row: %s", idx+1, rowsLen, h, rowStr)
 		}
 		rowUnchanged, err1 := types.EqualDatums(sc, oldRow, row)
 		if err1 != nil {

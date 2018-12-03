@@ -14,10 +14,10 @@
 package executor_test
 
 import (
-	"errors"
 	"fmt"
 	"sync/atomic"
 
+	"github.com/juju/errors"
 	. "github.com/pingcap/check"
 	"github.com/pingcap/tidb/ast"
 	"github.com/pingcap/tidb/domain"
@@ -26,8 +26,11 @@ import (
 	"github.com/pingcap/tidb/model"
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/table"
+	"github.com/pingcap/tidb/table/tables"
 	"github.com/pingcap/tidb/types"
+	"github.com/pingcap/tidb/util/mock"
 	"github.com/pingcap/tidb/util/testkit"
+	"golang.org/x/net/context"
 )
 
 func (s *testSuite) TestInsert(c *C) {
@@ -591,6 +594,12 @@ commit;`
 	INSERT t1 VALUES (1) ON DUPLICATE KEY UPDATE f1 = 1;`
 	tk.MustExec(testSQL)
 	tk.MustQuery(`SELECT * FROM t1;`).Check(testkit.Rows("1"))
+
+	testSQL = `drop table if exists t1;
+	create table t1(a int key, b int, unique(b));
+	insert into t1 values (1,1),(1,2),(3,1) on duplicate key update a=values(a), b=values(b);`
+	tk.MustExec(testSQL)
+	tk.MustQuery(`SELECT * FROM t1 order by a;`).Check(testkit.Rows("1 2", "3 1"))
 }
 
 func (s *testSuite) TestInsertIgnoreOnDup(c *C) {
@@ -734,6 +743,36 @@ func (s *testSuite) TestReplace(c *C) {
 	r.Check(testkit.Rows("1 1"))
 }
 
+func (s *testSuite) TestReplaceLog(c *C) {
+	tk := testkit.NewTestKit(c, s.store)
+	tk.MustExec("use test")
+	tk.MustExec(`create table testLog (a int not null primary key, b int unique key);`)
+
+	// Make some dangling index.
+	s.ctx = mock.NewContext()
+	s.ctx.Store = s.store
+	is := s.domain.InfoSchema()
+	dbName := model.NewCIStr("test")
+	tblName := model.NewCIStr("testLog")
+	tbl, err := is.TableByName(dbName, tblName)
+	c.Assert(err, IsNil)
+	tblInfo := tbl.Meta()
+	idxInfo := findIndexByName("b", tblInfo.Indices)
+	indexOpr := tables.NewIndex(tblInfo, idxInfo)
+
+	txn, err := s.store.Begin()
+	c.Assert(err, IsNil)
+	_, err = indexOpr.Create(s.ctx, txn, types.MakeDatums(1), 1)
+	c.Assert(err, IsNil)
+	err = txn.Commit(context.Background())
+	c.Assert(err, IsNil)
+
+	_, err = tk.Exec(`replace into testLog values (0, 0), (1, 1);`)
+	c.Assert(err, NotNil)
+	expErr := errors.New(`[replace] the 2th of total 2 rows, handle 1, row: (1, 1): [kv:2]Error: key not exist`)
+	c.Assert(expErr.Error() == err.Error(), IsTrue, Commentf("obtained error: (%s)\nexpected error: (%s)", err.Error(), expErr.Error()))
+}
+
 func (s *testSuite) TestUpdate(c *C) {
 	tk := testkit.NewTestKit(c, s.store)
 	tk.MustExec("use test")
@@ -866,6 +905,11 @@ func (s *testSuite) TestUpdate(c *C) {
 	tk.MustQuery("show warnings").Check(testkit.Rows("Warning 1265 Data Truncated"))
 	r = tk.MustQuery("select * from decimals")
 	r.Check(testkit.Rows("202"))
+
+	tk.MustExec("drop table t")
+	tk.MustExec("CREATE TABLE `t` (	`c1` year DEFAULT NULL, `c2` year DEFAULT NULL, `c3` date DEFAULT NULL, `c4` datetime DEFAULT NULL,	KEY `idx` (`c1`,`c2`))")
+	_, err = tk.Exec("UPDATE t SET c2=16777215 WHERE c1>= -8388608 AND c1 < -9 ORDER BY c1 LIMIT 2")
+	c.Assert(err.Error(), Equals, "cannot convert datum from bigint to type year.")
 }
 
 // TestUpdateCastOnlyModifiedValues for issue #4514.
@@ -1571,4 +1615,68 @@ func (s *testSuite) TestUpdateSelect(c *C) {
 	tk.MustExec("insert detail values ('abc', '123', 2)")
 	tk.MustExec("UPDATE msg SET msg.status = (SELECT detail.status FROM detail WHERE msg.id = detail.id)")
 	tk.MustExec("admin check table msg")
+}
+
+func (s *testSuite) TestUpdateDelete(c *C) {
+	tk := testkit.NewTestKit(c, s.store)
+	tk.MustExec("use test")
+	tk.MustExec("CREATE TABLE ttt (id bigint(20) NOT NULL, host varchar(30) NOT NULL, PRIMARY KEY (id), UNIQUE KEY i_host (host));")
+	tk.MustExec("insert into ttt values (8,8),(9,9);")
+
+	tk.MustExec("begin")
+	tk.MustExec("update ttt set id = 0, host='9' where id = 9 limit 1;")
+	tk.MustExec("delete from ttt where id = 0 limit 1;")
+	tk.MustQuery("select * from ttt use index (i_host) order by host;").Check(testkit.Rows("8 8"))
+	tk.MustExec("update ttt set id = 0, host='8' where id = 8 limit 1;")
+	tk.MustExec("delete from ttt where id = 0 limit 1;")
+	tk.MustQuery("select * from ttt use index (i_host) order by host;").Check(testkit.Rows())
+	tk.MustExec("commit")
+	tk.MustExec("admin check table ttt;")
+	tk.MustExec("drop table ttt")
+}
+
+func (s *testSuite) TestInsertDateTimeWithTimeZone(c *C) {
+	tk := testkit.NewTestKit(c, s.store)
+	tk.MustExec(`use test;`)
+	tk.MustExec(`set time_zone="+09:00";`)
+	tk.MustExec(`drop table if exists t;`)
+	tk.MustExec(`create table t (id int, c1 datetime not null default CURRENT_TIMESTAMP);`)
+	tk.MustExec(`set TIMESTAMP = 1234;`)
+	tk.MustExec(`insert t (id) values (1);`)
+	tk.MustQuery(`select * from t;`).Check(testkit.Rows(
+		`1 1970-01-01 09:20:34`,
+	))
+}
+
+// For issue 7422.
+// There is no need to do the rebase when updating a record if the auto-increment ID not changed.
+// This could make the auto ID increasing speed slower.
+func (s *testSuite) TestRebaseIfNeeded(c *C) {
+	tk := testkit.NewTestKit(c, s.store)
+	tk.MustExec("use test")
+	tk.MustExec(`create table t (a int not null primary key auto_increment, b int unique key);`)
+	tk.MustExec(`insert into t (b) values (1);`)
+
+	s.ctx = mock.NewContext()
+	s.ctx.Store = s.store
+	tbl, err := s.domain.InfoSchema().TableByName(model.NewCIStr("test"), model.NewCIStr("t"))
+	c.Assert(err, IsNil)
+	c.Assert(s.ctx.NewTxn(), IsNil)
+	// AddRecord directly here will skip to rebase the auto ID in the insert statement,
+	// which could simulate another TiDB adds a large auto ID.
+	_, err = tbl.AddRecord(s.ctx, types.MakeDatums(30001, 2), false)
+	c.Assert(err, IsNil)
+	c.Assert(s.ctx.Txn().Commit(context.Background()), IsNil)
+
+	tk.MustExec(`update t set b = 3 where a = 30001;`)
+	tk.MustExec(`insert into t (b) values (4);`)
+	tk.MustQuery(`select a from t where b = 4;`).Check(testkit.Rows("2"))
+
+	tk.MustExec(`insert into t set b = 3 on duplicate key update a = a;`)
+	tk.MustExec(`insert into t (b) values (5);`)
+	tk.MustQuery(`select a from t where b = 5;`).Check(testkit.Rows("4"))
+
+	tk.MustExec(`insert into t set b = 3 on duplicate key update a = a + 1;`)
+	tk.MustExec(`insert into t (b) values (6);`)
+	tk.MustQuery(`select a from t where b = 6;`).Check(testkit.Rows("30003"))
 }

@@ -111,7 +111,7 @@ func (a *recordSet) NewChunk() *chunk.Chunk {
 
 func (a *recordSet) Close() error {
 	err := a.executor.Close()
-	a.stmt.logSlowQuery(a.txnStartTS, a.lastErr == nil)
+	a.stmt.LogSlowQuery(a.txnStartTS, a.lastErr == nil)
 	if a.processinfo != nil {
 		a.processinfo.SetProcessInfo("")
 	}
@@ -133,8 +133,9 @@ type ExecStmt struct {
 
 	StmtNode ast.StmtNode
 
-	Ctx            sessionctx.Context
-	startTime      time.Time
+	Ctx sessionctx.Context
+	// StartTime stands for the starting time when executing the statement.
+	StartTime      time.Time
 	isPreparedStmt bool
 }
 
@@ -179,7 +180,7 @@ func (a *ExecStmt) RebuildPlan() error {
 // like the INSERT, UPDATE statements, it executes in this function, if the Executor returns
 // result, execution is done after this function returns, in the returned ast.RecordSet Next method.
 func (a *ExecStmt) Exec(ctx context.Context) (ast.RecordSet, error) {
-	a.startTime = time.Now()
+	a.StartTime = time.Now()
 	sctx := a.Ctx
 	if _, ok := a.Plan.(*plan.Analyze); ok && sctx.GetSessionVars().InRestrictedSQL {
 		oriStats, _ := sctx.GetSessionVars().GetSystemVar(variable.TiDBBuildStatsConcurrency)
@@ -260,7 +261,7 @@ func (a *ExecStmt) handleNoDelayExecutor(ctx context.Context, sctx sessionctx.Co
 		if sctx.Txn() != nil {
 			txnTS = sctx.Txn().StartTS()
 		}
-		a.logSlowQuery(txnTS, err == nil)
+		a.LogSlowQuery(txnTS, err == nil)
 	}()
 
 	err = e.Next(ctx, e.newChunk())
@@ -280,10 +281,10 @@ func (a *ExecStmt) buildExecutor(ctx sessionctx.Context) (Executor, error) {
 		var err error
 		isPointGet := IsPointGetWithPKOrUniqueKeyByAutoCommit(ctx, a.Plan)
 		if isPointGet {
-			log.Debugf("[con:%d][InitTxnWithStartTS] %s", ctx.GetSessionVars().ConnectionID, a.Text)
+			log.Debugf("con:%d InitTxnWithStartTS %s", ctx.GetSessionVars().ConnectionID, a.Text)
 			err = ctx.InitTxnWithStartTS(math.MaxUint64)
 		} else {
-			log.Debugf("[con:%d][ActivePendingTxn] %s", ctx.GetSessionVars().ConnectionID, a.Text)
+			log.Debugf("con:%d ActivePendingTxn %s", ctx.GetSessionVars().ConnectionID, a.Text)
 			err = ctx.ActivePendingTxn()
 		}
 		if err != nil {
@@ -328,13 +329,14 @@ func (a *ExecStmt) buildExecutor(ctx sessionctx.Context) (Executor, error) {
 // QueryReplacer replaces new line and tab for grep result including query string.
 var QueryReplacer = strings.NewReplacer("\r", " ", "\n", " ", "\t", " ")
 
-func (a *ExecStmt) logSlowQuery(txnTS uint64, succ bool) {
+// LogSlowQuery is used to print the slow query in the log files.
+func (a *ExecStmt) LogSlowQuery(txnTS uint64, succ bool) {
 	level := log.GetLevel()
 	if level < log.WarnLevel {
 		return
 	}
 	cfg := config.GetGlobalConfig()
-	costTime := time.Since(a.startTime)
+	costTime := time.Since(a.StartTime)
 	threshold := time.Duration(cfg.Log.SlowThreshold) * time.Millisecond
 	if costTime < threshold && level < log.DebugLevel {
 		return
@@ -358,12 +360,12 @@ func (a *ExecStmt) logSlowQuery(txnTS uint64, succ bool) {
 	user := a.Ctx.GetSessionVars().User
 	if costTime < threshold {
 		logutil.SlowQueryLogger.Debugf(
-			"[QUERY] cost_time:%v succ:%v con:%v user:%s txn_start_ts:%v database:%v %v%vsql:%v",
-			costTime, succ, connID, user, txnTS, currentDB, tableIDs, indexIDs, sql)
+			"[QUERY] cost_time:%v %s succ:%v con:%v user:%s txn_start_ts:%v database:%v %v%vsql:%v",
+			costTime, sessVars.StmtCtx.GetExecDetails(), succ, connID, user, txnTS, currentDB, tableIDs, indexIDs, sql)
 	} else {
 		logutil.SlowQueryLogger.Warnf(
-			"[SLOW_QUERY] cost_time:%v succ:%v con:%v user:%s txn_start_ts:%v database:%v %v%vsql:%v",
-			costTime, succ, connID, user, txnTS, currentDB, tableIDs, indexIDs, sql)
+			"[SLOW_QUERY] cost_time:%v %s succ:%v con:%v user:%s txn_start_ts:%v database:%v %v%vsql:%v",
+			costTime, sessVars.StmtCtx.GetExecDetails(), succ, connID, user, txnTS, currentDB, tableIDs, indexIDs, sql)
 	}
 }
 
