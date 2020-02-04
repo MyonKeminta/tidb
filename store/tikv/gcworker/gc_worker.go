@@ -1707,7 +1707,7 @@ func (w *MockGCWorker) DeleteRanges(ctx context.Context, safePoint uint64) error
 	return w.worker.deleteRanges(ctx, safePoint, 1)
 }
 
-const scanLockResultBufferSize = 128
+const scanLockResultBufferSize = 8
 
 // mergeLockScanner is used to scan specified stores by using PhysicalScanLock. For multiple stores, the scanner will
 // merge the scan results of each store, and remove the duplicating items from different stores.
