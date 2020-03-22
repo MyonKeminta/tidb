@@ -838,7 +838,7 @@ func (s *testGCWorkerSuite) TestRunDistGCJobAPI(c *C) {
 	gcSafePointCacheInterval = 0
 
 	safePoint := s.mustAllocTs(c)
-	err := RunDistributedGCJob(context.Background(), s.store, s.pdClient, safePoint, "mock", 1)
+	_, err := RunDistributedGCJob(context.Background(), s.store, s.pdClient, safePoint, "mock", 1, false)
 	c.Assert(err, IsNil)
 	pdSafePoint := s.mustGetSafePointFromPd(c)
 	c.Assert(pdSafePoint, Equals, safePoint)
