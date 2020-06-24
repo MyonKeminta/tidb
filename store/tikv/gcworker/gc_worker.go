@@ -787,9 +787,16 @@ func (w *GCWorker) ResolveLocks(ctx context.Context, safePoint uint64, concurren
 			if err != nil {
 				if loc == nil {
 					err = errors.Annotatef(err, "resolve lock failed before locating region")
+					logutil.Logger(ctx).Error("resolve lock failed before locating region", zap.Error(err))
 				} else {
 					err = errors.Annotatef(err, "resolve lock failed on region %v, key [%v, %v)",
 						loc.Region.GetID(), hex.EncodeToString(loc.StartKey), hex.EncodeToString(loc.EndKey))
+					logutil.Logger(ctx).Error("resolve lock failed on region",
+						zap.Uint64("regionID", loc.Region.GetID()),
+						zap.String("startKey", hex.EncodeToString(loc.StartKey)),
+						zap.String("endKey", hex.EncodeToString(loc.EndKey)),
+						zap.Error(err))
+
 					if len(loc.EndKey) != 0 && (len(endKey) == 0 || bytes.Compare(loc.EndKey, endKey) < 0) {
 						startKey = loc.EndKey
 						continue
