@@ -335,7 +335,7 @@ func (s *testGCWorkerSuite) TestResolveLockRangeInfine(c *C) {
 		c.Assert(failpoint.Disable("github.com/pingcap/tidb/store/tikv/invalidCacheAndRetry"), IsNil)
 		c.Assert(failpoint.Disable("github.com/pingcap/tidb/store/tikv/gcworker/setGcResolveMaxBackoff"), IsNil)
 	}()
-	_, err := s.gcWorker.resolveLocksForRange(context.Background(), 1, []byte{0}, []byte{1})
+	_, _, err := s.gcWorker.resolveLocksForRange(context.Background(), 1, []byte{0}, []byte{1})
 	c.Assert(err, NotNil)
 }
 

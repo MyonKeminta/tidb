@@ -16,6 +16,7 @@ package gcworker
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -30,7 +31,7 @@ import (
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/parser/terror"
-	"github.com/pingcap/pd/client"
+	pd "github.com/pingcap/pd/client"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/ddl/util"
 	"github.com/pingcap/tidb/kv"
@@ -778,7 +779,24 @@ func (w *GCWorker) resolveLocks(ctx context.Context, safePoint uint64, concurren
 	startTime := time.Now()
 
 	handler := func(ctx context.Context, r kv.KeyRange) (int, error) {
-		return w.resolveLocksForRange(ctx, safePoint, r.StartKey, r.EndKey)
+		startKey := r.StartKey
+		endKey := r.EndKey
+		for {
+			cnt, loc, err := w.resolveLocksForRange(ctx, safePoint, startKey, endKey)
+			if err != nil {
+				if loc == nil {
+					err = errors.Annotatef(err, "resolve lock failed before locating region")
+				} else {
+					err = errors.Annotatef(err, "resolve lock failed on region %v, key [%v, %v)",
+						loc.Region.GetID(), hex.EncodeToString(loc.StartKey), hex.EncodeToString(loc.EndKey))
+					if len(loc.EndKey) != 0 && (len(endKey) == 0 || bytes.Compare(loc.EndKey, endKey) < 0) {
+						startKey = loc.EndKey
+						continue
+					}
+				}
+			}
+			return cnt, err
+		}
 	}
 
 	runner := tikv.NewRangeTaskRunner("resolve-locks-runner", w.store, concurrency, handler)
@@ -805,7 +823,7 @@ func (w *GCWorker) resolveLocksForRange(
 	safePoint uint64,
 	startKey []byte,
 	endKey []byte,
-) (int, error) {
+) (int, *tikv.KeyLocation, error) {
 	// for scan lock request, we must return all locks even if they are generated
 	// by the same transaction. because gc worker need to make sure all locks have been
 	// cleaned.
@@ -829,36 +847,36 @@ func (w *GCWorker) resolveLocksForRange(
 	for {
 		select {
 		case <-ctx.Done():
-			return regions, errors.New("[gc worker] gc job canceled")
+			return regions, nil, errors.New("[gc worker] gc job canceled")
 		default:
 		}
 
 		req.ScanLock.StartKey = key
 		loc, err := w.store.GetRegionCache().LocateKey(bo, key)
 		if err != nil {
-			return regions, errors.Trace(err)
+			return regions, nil, errors.Trace(err)
 		}
 		resp, err := w.store.SendReq(bo, req, loc.Region, tikv.ReadTimeoutMedium)
 		if err != nil {
-			return regions, errors.Trace(err)
+			return regions, loc, errors.Trace(err)
 		}
 		regionErr, err := resp.GetRegionError()
 		if err != nil {
-			return regions, errors.Trace(err)
+			return regions, loc, errors.Trace(err)
 		}
 		if regionErr != nil {
 			err = bo.Backoff(tikv.BoRegionMiss, errors.New(regionErr.String()))
 			if err != nil {
-				return regions, errors.Trace(err)
+				return regions, loc, errors.Trace(err)
 			}
 			continue
 		}
 		locksResp := resp.ScanLock
 		if locksResp == nil {
-			return regions, errors.Trace(tikv.ErrBodyMissing)
+			return regions, loc, errors.Trace(tikv.ErrBodyMissing)
 		}
 		if locksResp.GetError() != nil {
-			return regions, errors.Errorf("unexpected scanlock error: %s", locksResp)
+			return regions, loc, errors.Errorf("unexpected scanlock error: %s", locksResp)
 		}
 		locksInfo := locksResp.GetLocks()
 		locks := make([]*tikv.Lock, len(locksInfo))
@@ -868,12 +886,12 @@ func (w *GCWorker) resolveLocksForRange(
 
 		ok, err1 := w.store.GetLockResolver().BatchResolveLocks(bo, locks, loc.Region)
 		if err1 != nil {
-			return regions, errors.Trace(err1)
+			return regions, loc, errors.Trace(err1)
 		}
 		if !ok {
 			err = bo.Backoff(tikv.BoTxnLock, errors.Errorf("remain locks: %d", len(locks)))
 			if err != nil {
-				return regions, errors.Trace(err)
+				return regions, loc, errors.Trace(err)
 			}
 			continue
 		}
@@ -898,7 +916,7 @@ func (w *GCWorker) resolveLocksForRange(
 			bo = tikv.NewBackoffer(ctx, sleep)
 		})
 	}
-	return regions, nil
+	return regions, nil, nil
 }
 
 func (w *GCWorker) uploadSafePointToPD(ctx context.Context, safePoint uint64) error {
