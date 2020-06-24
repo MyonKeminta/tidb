@@ -242,6 +242,11 @@ func (lr *LockResolver) BatchResolveLocks(bo *Backoffer, locks []*Lock, loc Regi
 	}
 
 	if regionErr != nil {
+		logutil.Logger(context.Background()).Warn("BatchResolveLocks: region error",
+			zap.Uint64("regionID", loc.GetID()),
+			zap.Uint64("regionVer", loc.ver),
+			zap.Uint64("regionConfVer", loc.confVer),
+			zap.String("regionErr", regionErr.String()))
 		err = bo.Backoff(BoRegionMiss, errors.New(regionErr.String()))
 		if err != nil {
 			return false, errors.Trace(err)
