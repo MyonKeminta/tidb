@@ -491,7 +491,7 @@ func (w *GCWorker) calculateNewSafePoint(now time.Time) (*time.Time, error) {
 
 func (w *GCWorker) runGCJob(ctx context.Context, safePoint uint64, concurrency int) {
 	metrics.GCWorkerCounter.WithLabelValues("run_job").Inc()
-	err := w.resolveLocks(ctx, safePoint, concurrency)
+	err := w.ResolveLocks(ctx, safePoint, concurrency)
 	if err != nil {
 		logutil.Logger(ctx).Error("[gc worker] resolve locks returns an error",
 			zap.String("uuid", w.uuid),
@@ -770,7 +770,8 @@ func (w *GCWorker) checkUseDistributedGC() (bool, error) {
 	return true, nil
 }
 
-func (w *GCWorker) resolveLocks(ctx context.Context, safePoint uint64, concurrency int) error {
+// ResolveLocks resolves locks with specified safepoint and concurrency
+func (w *GCWorker) ResolveLocks(ctx context.Context, safePoint uint64, concurrency int) error {
 	metrics.GCWorkerCounter.WithLabelValues("resolve_locks").Inc()
 	logutil.Logger(ctx).Info("[gc worker] start resolve locks",
 		zap.String("uuid", w.uuid),
@@ -1346,7 +1347,7 @@ func RunGCJob(ctx context.Context, s tikv.Storage, safePoint uint64, identifier 
 		uuid:  identifier,
 	}
 
-	err := gcWorker.resolveLocks(ctx, safePoint, concurrency)
+	err := gcWorker.ResolveLocks(ctx, safePoint, concurrency)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -1386,7 +1387,7 @@ func RunDistributedGCJob(
 		pdClient: pd,
 	}
 
-	err := gcWorker.resolveLocks(ctx, safePoint, concurrency)
+	err := gcWorker.ResolveLocks(ctx, safePoint, concurrency)
 	if err != nil {
 		return errors.Trace(err)
 	}
