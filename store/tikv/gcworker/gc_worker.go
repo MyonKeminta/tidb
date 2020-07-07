@@ -520,6 +520,11 @@ func (w *GCWorker) setGCWorkerServiceSafePoint(ctx context.Context, safePoint ui
 		metrics.GCJobFailureCounter.WithLabelValues("update_service_safe_point").Inc()
 		return 0, errors.Trace(err)
 	}
+	logutil.Logger(ctx).Info("[gc worker] update service safepoint ",
+		zap.String("uuid", w.uuid),
+		zap.Uint64("ourSafePoint", safePoint),
+		zap.Uint64("minSafePoint", minSafePoint),
+	)
 	if minSafePoint < safePoint {
 		logutil.Logger(ctx).Info("[gc worker] there's another service in the cluster requires an earlier safe point. "+
 			"gc will continue with the earlier one",
