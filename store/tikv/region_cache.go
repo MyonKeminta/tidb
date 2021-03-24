@@ -474,12 +474,12 @@ func (c *RegionCache) GetTiKVRPCContext(bo *Backoffer, id RegionVerID, replicaRe
 		proxyStoreIdx  int
 	)
 	if c.enableForwarding && isLeaderReq {
-		failpointForceForwarding := false
-		failpoint.Inject("tikvForceForwarding", func() {
-			failpointForceForwarding = true
-		})
+		//failpointForceForwarding := false
+		//failpoint.Inject("tikvForceForwarding", func() {
+		//	failpointForceForwarding = true
+		//})
 
-		if atomic.LoadInt32(&store.needForwarding) == 0 && !failpointForceForwarding {
+		if /*atomic.LoadInt32(&store.needForwarding) == 0 && !failpointForceForwarding*/ false {
 			regionStore.unsetProxyStoreIfNeeded(cachedRegion)
 		} else {
 			proxyStore, proxyAccessIdx, proxyStoreIdx, err = c.getProxyStore(cachedRegion, store, regionStore, accessIdx)
@@ -671,12 +671,12 @@ func (c *RegionCache) OnSendFail(bo *Backoffer, ctx *RPCContext, scheduleReload 
 				// send fail but store is reachable, keep retry current peer for replica leader request.
 				// but we still need switch peer for follower-read or learner-read(i.e. tiflash)
 				if leaderReq {
-					failpointForceForwarding := false
-					failpoint.Inject("tikvOnSendFailForceForwarding", func() {
-						failpointForceForwarding = true
-					})
+					//failpointForceForwarding := false
+					//failpoint.Inject("tikvOnSendFailForceForwarding", func() {
+					//	failpointForceForwarding = true
+					//})
 
-					if failpointForceForwarding {
+					if /*failpointForceForwarding*/ true {
 						startForwarding = true
 					} else if s.requestLiveness(bo, c) == reachable {
 						return
@@ -1243,7 +1243,7 @@ func (c *RegionCache) getStoreAddr(bo *Backoffer, region *Region, store *Store, 
 }
 
 func (c *RegionCache) getProxyStore(region *Region, store *Store, rs *RegionStore, workStoreIdx AccessIndex) (proxyStore *Store, proxyAccessIdx AccessIndex, proxyStoreIdx int, err error) {
-	if !c.enableForwarding || store.storeType != TiKV || atomic.LoadInt32(&store.needForwarding) == 0 {
+	if !c.enableForwarding || store.storeType != TiKV /*|| atomic.LoadInt32(&store.needForwarding) == 0*/ {
 		return
 	}
 
