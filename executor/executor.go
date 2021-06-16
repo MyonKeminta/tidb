@@ -30,7 +30,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
-	"github.com/pingcap/parser"
 	"github.com/pingcap/parser/ast"
 	"github.com/pingcap/parser/auth"
 	"github.com/pingcap/parser/model"
@@ -51,7 +50,6 @@ import (
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/store/tikv"
-	tikverr "github.com/pingcap/tidb/store/tikv/error"
 	tikvstore "github.com/pingcap/tidb/store/tikv/kv"
 	tikvutil "github.com/pingcap/tidb/store/tikv/util"
 	"github.com/pingcap/tidb/table"
@@ -61,12 +59,10 @@ import (
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/admin"
 	"github.com/pingcap/tidb/util/chunk"
-	"github.com/pingcap/tidb/util/deadlockhistory"
 	"github.com/pingcap/tidb/util/disk"
 	"github.com/pingcap/tidb/util/execdetails"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/memory"
-	"github.com/pingcap/tidb/util/resourcegrouptag"
 	"github.com/pingcap/tidb/util/topsql"
 	"go.uber.org/zap"
 )
@@ -977,11 +973,11 @@ func (e *SelectLockExec) Next(ctx context.Context, req *chunk.Chunk) error {
 }
 
 func newLockCtx(seVars *variable.SessionVars, lockWaitTime int64) *tikvstore.LockCtx {
-	var planDigest *parser.Digest
-	_, sqlDigest := seVars.StmtCtx.SQLDigest()
-	if variable.TopSQLEnabled() {
-		_, planDigest = seVars.StmtCtx.GetPlanDigest()
-	}
+	//var planDigest *parser.Digest
+	//_, sqlDigest := seVars.StmtCtx.SQLDigest()
+	//if variable.TopSQLEnabled() {
+	//	_, planDigest = seVars.StmtCtx.GetPlanDigest()
+	//}
 	return &tikvstore.LockCtx{
 		Killed:                &seVars.Killed,
 		ForUpdateTS:           seVars.TxnCtx.GetForUpdateTS(),
@@ -991,14 +987,14 @@ func newLockCtx(seVars *variable.SessionVars, lockWaitTime int64) *tikvstore.Loc
 		LockKeysDuration:      &seVars.StmtCtx.LockKeysDuration,
 		LockKeysCount:         &seVars.StmtCtx.LockKeysCount,
 		LockExpired:           &seVars.TxnCtx.LockExpire,
-		ResourceGroupTag:      resourcegrouptag.EncodeResourceGroupTag(sqlDigest, planDigest),
-		OnDeadlock: func(deadlock *tikverr.ErrDeadlock) {
-			// TODO: Support collecting retryable deadlocks according to the config.
-			if !deadlock.IsRetryable {
-				rec := deadlockhistory.ErrDeadlockToDeadlockRecord(deadlock)
-				deadlockhistory.GlobalDeadlockHistory.Push(rec)
-			}
-		},
+		//ResourceGroupTag:      resourcegrouptag.EncodeResourceGroupTag(sqlDigest, planDigest),
+		//OnDeadlock: func(deadlock *tikverr.ErrDeadlock) {
+		//	// TODO: Support collecting retryable deadlocks according to the config.
+		//	if !deadlock.IsRetryable {
+		//		rec := deadlockhistory.ErrDeadlockToDeadlockRecord(deadlock)
+		//		deadlockhistory.GlobalDeadlockHistory.Push(rec)
+		//	}
+		//},
 	}
 }
 

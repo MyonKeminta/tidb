@@ -20,8 +20,6 @@ import (
 	"runtime/trace"
 	"strings"
 	"sync/atomic"
-	"time"
-	"unsafe"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
@@ -30,7 +28,6 @@ import (
 	"github.com/pingcap/parser/terror"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/kv"
-	"github.com/pingcap/tidb/session/txninfo"
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/sessionctx/binloginfo"
 	"github.com/pingcap/tidb/store/tikv"
@@ -65,7 +62,7 @@ type LazyTxn struct {
 
 	// txnInfo provides information about the transaction in a thread-safe way. To atomically replace the struct,
 	// it's stored as an unsafe.Pointer.
-	txnInfo unsafe.Pointer
+	//txnInfo unsafe.Pointer
 }
 
 // GetTableInfo returns the cached index name.
@@ -80,9 +77,9 @@ func (txn *LazyTxn) CacheTableInfo(id int64, info *model.TableInfo) {
 
 func (txn *LazyTxn) init() {
 	txn.mutations = make(map[int64]*binlog.TableMutation)
-	txn.storeTxnInfo(&txninfo.TxnInfo{
-		State: txninfo.TxnRunningNormal,
-	})
+	//txn.storeTxnInfo(&txninfo.TxnInfo{
+	//	State: txninfo.TxnRunningNormal,
+	//})
 }
 
 func (txn *LazyTxn) initStmtBuf() {
@@ -119,37 +116,37 @@ func (txn *LazyTxn) cleanupStmtBuf() {
 	buf.Cleanup(txn.stagingHandle)
 	txn.initCnt = buf.Len()
 
-	txnInfo := txn.getTxnInfo()
-	atomic.StoreUint64(&txnInfo.EntriesCount, uint64(txn.Transaction.Len()))
-	atomic.StoreUint64(&txnInfo.EntriesSize, uint64(txn.Transaction.Size()))
+	//txnInfo := txn.getTxnInfo()
+	//atomic.StoreUint64(&txnInfo.EntriesCount, uint64(txn.Transaction.Len()))
+	//atomic.StoreUint64(&txnInfo.EntriesSize, uint64(txn.Transaction.Size()))
 }
 
-func (txn *LazyTxn) storeTxnInfo(info *txninfo.TxnInfo) {
-	atomic.StorePointer(&txn.txnInfo, unsafe.Pointer(info))
-}
+//func (txn *LazyTxn) storeTxnInfo(info *txninfo.TxnInfo) {
+//	atomic.StorePointer(&txn.txnInfo, unsafe.Pointer(info))
+//}
 
-func (txn *LazyTxn) recreateTxnInfo(
-	startTS uint64,
-	state txninfo.TxnRunningState,
-	entriesCount,
-	entriesSize uint64,
-	currentSQLDigest string,
-	allSQLDigests []string,
-) {
-	info := &txninfo.TxnInfo{
-		StartTS:          startTS,
-		State:            state,
-		EntriesCount:     entriesCount,
-		EntriesSize:      entriesSize,
-		CurrentSQLDigest: currentSQLDigest,
-		AllSQLDigests:    allSQLDigests,
-	}
-	txn.storeTxnInfo(info)
-}
-
-func (txn *LazyTxn) getTxnInfo() *txninfo.TxnInfo {
-	return (*txninfo.TxnInfo)(atomic.LoadPointer(&txn.txnInfo))
-}
+//func (txn *LazyTxn) recreateTxnInfo(
+//	startTS uint64,
+//	state txninfo.TxnRunningState,
+//	entriesCount,
+//	entriesSize uint64,
+//	currentSQLDigest string,
+//	allSQLDigests []string,
+//) {
+//	info := &txninfo.TxnInfo{
+//		StartTS:          startTS,
+//		State:            state,
+//		EntriesCount:     entriesCount,
+//		EntriesSize:      entriesSize,
+//		CurrentSQLDigest: currentSQLDigest,
+//		AllSQLDigests:    allSQLDigests,
+//	}
+//	txn.storeTxnInfo(info)
+//}
+//
+//func (txn *LazyTxn) getTxnInfo() *txninfo.TxnInfo {
+//	return (*txninfo.TxnInfo)(atomic.LoadPointer(&txn.txnInfo))
+//}
 
 // Size implements the MemBuffer interface.
 func (txn *LazyTxn) Size() int {
@@ -217,13 +214,13 @@ func (txn *LazyTxn) GetOption(opt int) interface{} {
 func (txn *LazyTxn) changeInvalidToValid(kvTxn kv.Transaction) {
 	txn.Transaction = kvTxn
 	txn.initStmtBuf()
-	txn.recreateTxnInfo(
-		kvTxn.StartTS(),
-		txninfo.TxnRunningNormal,
-		uint64(txn.Transaction.Len()),
-		uint64(txn.Transaction.Size()),
-		"",
-		nil)
+	//txn.recreateTxnInfo(
+	//	kvTxn.StartTS(),
+	//	txninfo.TxnRunningNormal,
+	//	uint64(txn.Transaction.Len()),
+	//	uint64(txn.Transaction.Size()),
+	//	"",
+	//	nil)
 	txn.txnFuture = nil
 }
 
@@ -250,14 +247,14 @@ func (txn *LazyTxn) changePendingToValid(ctx context.Context) error {
 	txn.initStmtBuf()
 
 	// The txnInfo may already recorded the first statement (usually "begin") when it's pending, so keep them.
-	txnInfo := txn.getTxnInfo()
-	txn.recreateTxnInfo(
-		t.StartTS(),
-		txninfo.TxnRunningNormal,
-		uint64(txn.Transaction.Len()),
-		uint64(txn.Transaction.Size()),
-		txnInfo.CurrentSQLDigest,
-		txnInfo.AllSQLDigests)
+	//txnInfo := txn.getTxnInfo()
+	//txn.recreateTxnInfo(
+	//	t.StartTS(),
+	//	txninfo.TxnRunningNormal,
+	//	uint64(txn.Transaction.Len()),
+	//	uint64(txn.Transaction.Size()),
+	//	txnInfo.CurrentSQLDigest,
+	//	txnInfo.AllSQLDigests)
 	return nil
 }
 
@@ -269,36 +266,36 @@ func (txn *LazyTxn) changeToInvalid() {
 	txn.Transaction = nil
 	txn.txnFuture = nil
 
-	txn.recreateTxnInfo(
-		0,
-		txninfo.TxnRunningNormal,
-		0,
-		0,
-		"",
-		nil)
+	//txn.recreateTxnInfo(
+	//	0,
+	//	txninfo.TxnRunningNormal,
+	//	0,
+	//	0,
+	//	"",
+	//	nil)
 }
 
-func (txn *LazyTxn) onStmtStart(currentSQLDigest string) {
-	if len(currentSQLDigest) == 0 {
-		return
-	}
-
-	info := txn.getTxnInfo().ShallowClone()
-	info.CurrentSQLDigest = currentSQLDigest
-	// Keeps at most 50 history sqls to avoid consuming too much memory.
-	const maxTransactionStmtHistory int = 50
-	if len(info.AllSQLDigests) < maxTransactionStmtHistory {
-		info.AllSQLDigests = append(info.AllSQLDigests, currentSQLDigest)
-	}
-
-	txn.storeTxnInfo(info)
-}
-
-func (txn *LazyTxn) onStmtEnd() {
-	info := txn.getTxnInfo().ShallowClone()
-	info.CurrentSQLDigest = ""
-	txn.storeTxnInfo(info)
-}
+//func (txn *LazyTxn) onStmtStart(currentSQLDigest string) {
+//	if len(currentSQLDigest) == 0 {
+//		return
+//	}
+//
+//	info := txn.getTxnInfo().ShallowClone()
+//	info.CurrentSQLDigest = currentSQLDigest
+//	// Keeps at most 50 history sqls to avoid consuming too much memory.
+//	const maxTransactionStmtHistory int = 50
+//	if len(info.AllSQLDigests) < maxTransactionStmtHistory {
+//		info.AllSQLDigests = append(info.AllSQLDigests, currentSQLDigest)
+//	}
+//
+//	txn.storeTxnInfo(info)
+//}
+//
+//func (txn *LazyTxn) onStmtEnd() {
+//	info := txn.getTxnInfo().ShallowClone()
+//	info.CurrentSQLDigest = ""
+//	txn.storeTxnInfo(info)
+//}
 
 var hasMockAutoIncIDRetry = int64(0)
 
@@ -337,7 +334,7 @@ func (txn *LazyTxn) Commit(ctx context.Context) error {
 		return errors.Trace(kv.ErrInvalidTxn)
 	}
 
-	atomic.StoreInt32(&txn.getTxnInfo().State, txninfo.TxnCommitting)
+	//atomic.StoreInt32(&txn.getTxnInfo().State, txninfo.TxnCommitting)
 
 	failpoint.Inject("mockSlowCommit", func(_ failpoint.Value) {})
 
@@ -369,25 +366,25 @@ func (txn *LazyTxn) Commit(ctx context.Context) error {
 // Rollback overrides the Transaction interface.
 func (txn *LazyTxn) Rollback() error {
 	defer txn.reset()
-	atomic.StoreInt32(&txn.getTxnInfo().State, txninfo.TxnRollingBack)
+	//atomic.StoreInt32(&txn.getTxnInfo().State, txninfo.TxnRollingBack)
 	// mockSlowRollback is used to mock a rollback which takes a long time
 	failpoint.Inject("mockSlowRollback", func(_ failpoint.Value) {})
 	return txn.Transaction.Rollback()
 }
 
-// LockKeys Wrap the inner transaction's `LockKeys` to record the status
-func (txn *LazyTxn) LockKeys(ctx context.Context, lockCtx *kv.LockCtx, keys ...kv.Key) error {
-	txnInfo := txn.getTxnInfo()
-	originState := atomic.SwapInt32(&txnInfo.State, txninfo.TxnLockWaiting)
-	t := time.Now()
-	atomic.StorePointer(&txnInfo.BlockStartTime, unsafe.Pointer(&t))
-	err := txn.Transaction.LockKeys(ctx, lockCtx, keys...)
-	atomic.StorePointer(&txnInfo.BlockStartTime, unsafe.Pointer(nil))
-	atomic.StoreInt32(&txnInfo.State, originState)
-	atomic.StoreUint64(&txnInfo.EntriesCount, uint64(txn.Transaction.Len()))
-	atomic.StoreUint64(&txnInfo.EntriesSize, uint64(txn.Transaction.Size()))
-	return err
-}
+//// LockKeys Wrap the inner transaction's `LockKeys` to record the status
+//func (txn *LazyTxn) LockKeys(ctx context.Context, lockCtx *kv.LockCtx, keys ...kv.Key) error {
+//	txnInfo := txn.getTxnInfo()
+//	originState := atomic.SwapInt32(&txnInfo.State, txninfo.TxnLockWaiting)
+//	t := time.Now()
+//	atomic.StorePointer(&txnInfo.BlockStartTime, unsafe.Pointer(&t))
+//	err := txn.Transaction.LockKeys(ctx, lockCtx, keys...)
+//	atomic.StorePointer(&txnInfo.BlockStartTime, unsafe.Pointer(nil))
+//	atomic.StoreInt32(&txnInfo.State, originState)
+//	atomic.StoreUint64(&txnInfo.EntriesCount, uint64(txn.Transaction.Len()))
+//	atomic.StoreUint64(&txnInfo.EntriesSize, uint64(txn.Transaction.Size()))
+//	return err
+//}
 
 func (txn *LazyTxn) reset() {
 	txn.cleanup()
@@ -441,26 +438,26 @@ func keyNeedToLock(k, v []byte, flags kv.KeyFlags) bool {
 	return !isNonUniqueIndex
 }
 
-// Info dump the TxnState to Datum for displaying in `TIDB_TRX`
-// This function is supposed to be thread safe
-func (txn *LazyTxn) Info() *txninfo.TxnInfo {
-	info := txn.getTxnInfo().ShallowClone()
-	if info.StartTS == 0 {
-		return nil
-	}
-	return info
-}
+//// Info dump the TxnState to Datum for displaying in `TIDB_TRX`
+//// This function is supposed to be thread safe
+//func (txn *LazyTxn) Info() *txninfo.TxnInfo {
+//	info := txn.getTxnInfo().ShallowClone()
+//	if info.StartTS == 0 {
+//		return nil
+//	}
+//	return info
+//}
 
-// UpdateEntriesCountAndSize updates the EntriesCount and EntriesSize
-// Note this function is not thread safe, because
-// txn.Transaction can be changed during this function's execution if running parallel.
-func (txn *LazyTxn) UpdateEntriesCountAndSize() {
-	if txn.Valid() {
-		txnInfo := txn.getTxnInfo()
-		atomic.StoreUint64(&txnInfo.EntriesCount, uint64(txn.Transaction.Len()))
-		atomic.StoreUint64(&txnInfo.EntriesSize, uint64(txn.Transaction.Size()))
-	}
-}
+//// UpdateEntriesCountAndSize updates the EntriesCount and EntriesSize
+//// Note this function is not thread safe, because
+//// txn.Transaction can be changed during this function's execution if running parallel.
+//func (txn *LazyTxn) UpdateEntriesCountAndSize() {
+//	if txn.Valid() {
+//		txnInfo := txn.getTxnInfo()
+//		atomic.StoreUint64(&txnInfo.EntriesCount, uint64(txn.Transaction.Len()))
+//		atomic.StoreUint64(&txnInfo.EntriesSize, uint64(txn.Transaction.Size()))
+//	}
+//}
 
 func getBinlogMutation(ctx sessionctx.Context, tableID int64) *binlog.TableMutation {
 	bin := binloginfo.GetPrewriteValue(ctx, true)

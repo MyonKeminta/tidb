@@ -448,15 +448,16 @@ func (s *session) FieldList(tableName string) ([]*ast.ResultField, error) {
 }
 
 func (s *session) TxnInfo() *txninfo.TxnInfo {
-	txnInfo := s.txn.Info()
-	if txnInfo == nil {
-		return nil
-	}
-	processInfo := s.ShowProcess()
-	txnInfo.ConnectionID = processInfo.ID
-	txnInfo.Username = processInfo.User
-	txnInfo.CurrentDB = processInfo.DB
-	return txnInfo
+	//txnInfo := s.txn.Info()
+	//if txnInfo == nil {
+	//	return nil
+	//}
+	//processInfo := s.ShowProcess()
+	//txnInfo.ConnectionID = processInfo.ID
+	//txnInfo.Username = processInfo.User
+	//txnInfo.CurrentDB = processInfo.DB
+	//return txnInfo
+	return nil
 }
 
 func (s *session) doCommit(ctx context.Context) error {
@@ -561,7 +562,7 @@ func (s *session) removeTempTableFromBuffer() error {
 			if err = memBuffer.Delete(iter.Key()); err != nil {
 				return err
 			}
-			s.txn.UpdateEntriesCountAndSize()
+			//s.txn.UpdateEntriesCountAndSize()
 			if err = iter.Next(); err != nil {
 				return err
 			}
@@ -1518,8 +1519,8 @@ func (s *session) ExecuteStmt(ctx context.Context, stmtNode ast.StmtNode) (sqlex
 	// Uncorrelated subqueries will execute once when building plan, so we reset process info before building plan.
 	cmd32 := atomic.LoadUint32(&s.GetSessionVars().CommandValue)
 	s.SetProcessInfo(stmtNode.Text(), time.Now(), byte(cmd32), 0)
-	s.txn.onStmtStart(digest.String())
-	defer s.txn.onStmtEnd()
+	//s.txn.onStmtStart(digest.String())
+	//defer s.txn.onStmtEnd()
 
 	// Transform abstract syntax tree to a physical plan(stored in executor.ExecStmt).
 	compiler := executor.Compiler{Ctx: s}
@@ -1927,7 +1928,7 @@ func (s *session) ExecutePreparedStmt(ctx context.Context, stmtID uint32, args [
 	if err != nil {
 		return nil, err
 	}
-	s.txn.onStmtStart(preparedStmt.SQLDigest.String())
+	//s.txn.onStmtStart(preparedStmt.SQLDigest.String())
 	var is infoschema.InfoSchema
 	var snapshotTS uint64
 	if preparedStmt.ForUpdateRead {
@@ -1950,7 +1951,7 @@ func (s *session) ExecutePreparedStmt(ctx context.Context, stmtID uint32, args [
 	} else {
 		rs, err = s.preparedStmtExec(ctx, is, snapshotTS, stmtID, preparedStmt, args)
 	}
-	s.txn.onStmtEnd()
+	//s.txn.onStmtEnd()
 	return rs, err
 }
 
