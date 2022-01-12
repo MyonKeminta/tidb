@@ -30,7 +30,6 @@ import (
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/planner/core"
-	"github.com/pingcap/tidb/session"
 	"github.com/pingcap/tidb/sessionctx/stmtctx"
 	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/table"
@@ -1082,6 +1081,7 @@ func TestCheckFailReport(t *testing.T) {
 	defer clean()
 	tk := newInconsistencyKit(t, testkit.NewAsyncTestKit(t, store), newDefaultOpt())
 
+	/*
 	// row more than unique index
 	func() {
 		defer tk.rebuild()
@@ -1247,33 +1247,46 @@ func TestCheckFailReport(t *testing.T) {
 		logEntry.checkFieldNotEmpty(t, "index_mvcc")
 	}()
 
-	// handle match but value is different for plain key
-	func() {
-		defer tk.rebuild()
+	*/
 
-		tk.MustExec(tk.ctx, fmt.Sprintf("insert into %s values(1, 10, '100')", tblName))
-		txn, err := store.Begin()
-		require.NoError(t, err)
-		require.NoError(t, tk.plainIndex.Delete(tk.sctx, txn, []types.Datum{types.NewStringDatum("100")}, kv.IntHandle(1)))
-		_, err = tk.plainIndex.Create(mock.NewContext(), txn, []types.Datum{types.NewStringDatum("200")}, kv.IntHandle(1), nil)
-		require.NoError(t, err)
-		require.NoError(t, txn.Commit(tk.ctx))
-		ctx, hook := withLogHook(tk.ctx, "inconsistency")
-		_, err = tk.Exec(ctx, "admin check table admin_test")
-		require.Error(t, err)
-		require.Equal(t, "[executor:8134]data inconsistency in table: admin_test, index: k2, col: c3, handle: \"1\", index-values:\"KindString 200\" != record-values:\"KindString 100\", compare err:<nil>", err.Error())
-		hook.checkLogCount(t, 1)
-		logEntry := hook.logs[0]
-		logEntry.checkMsg(t, "admin check found data inconsistency")
-		logEntry.checkField(t,
-			zap.String("table_name", "admin_test"),
-			zap.String("index_name", "k2"),
-			zap.Stringer("row_id", kv.IntHandle(1)),
-			zap.String("col", "c3"),
-		)
-		logEntry.checkFieldNotEmpty(t, "row_mvcc")
-		logEntry.checkFieldNotEmpty(t, "index_mvcc")
-	}()
+	// handle match but value is different for plain key
+	for i := 0; i < 1000; i++ {
+		logutil.BgLogger().Info("--------- iterate start", zap.Int("round", i))
+		success := func() bool {
+			defer tk.rebuild()
+
+			tk.MustExec(tk.ctx, fmt.Sprintf("insert into %s values(1, 10, '100')", tblName))
+			txn, err := store.Begin()
+			require.NoError(t, err)
+			require.NoError(t, tk.plainIndex.Delete(tk.sctx, txn, []types.Datum{types.NewStringDatum("100")}, kv.IntHandle(1)))
+			_, err = tk.plainIndex.Create(mock.NewContext(), txn, []types.Datum{types.NewStringDatum("200")}, kv.IntHandle(1), nil)
+			require.NoError(t, err)
+			require.NoError(t, txn.Commit(tk.ctx))
+			ctx, hook := withLogHook(tk.ctx, "inconsistency")
+			_, err = tk.Exec(ctx, "admin check table admin_test")
+			require.Error(t, err)
+			require.Equal(t, "[executor:8134]data inconsistency in table: admin_test, index: k2, col: c3, handle: \"1\", index-values:\"KindString 200\" != record-values:\"KindString 100\", compare err:<nil>", err.Error())
+			hook.checkLogCount(t, 1)
+			if len(hook.logs) > 1 {
+				logutil.BgLogger().Info("Test failed, exit now")
+				return false
+			}
+			logEntry := hook.logs[0]
+			logEntry.checkMsg(t, "admin check found data inconsistency")
+			logEntry.checkField(t,
+				zap.String("table_name", "admin_test"),
+				zap.String("index_name", "k2"),
+				zap.Stringer("row_id", kv.IntHandle(1)),
+				zap.String("col", "c3"),
+			)
+			logEntry.checkFieldNotEmpty(t, "row_mvcc")
+			logEntry.checkFieldNotEmpty(t, "index_mvcc")
+			return true
+		}()
+		if !success {
+			return
+		}
+	}
 
 	// test binary column.
 	opt := newDefaultOpt()

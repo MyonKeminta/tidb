@@ -30,13 +30,16 @@ package dbreader
 
 import (
 	"bytes"
+	"encoding/hex"
 	"math"
 
 	"github.com/pingcap/badger"
 	"github.com/pingcap/badger/y"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
+	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/store/mockstore/unistore/tikv/mvcc"
+	"go.uber.org/zap"
 )
 
 // NewDBReader returns a new *DBReader.
@@ -107,12 +110,17 @@ func (r *DBReader) Get(key []byte, startTS uint64) ([]byte, error) {
 	r.txn.SetReadTS(startTS)
 	item, err := r.txn.Get(key)
 	if err != nil && err != badger.ErrKeyNotFound {
+		log.Info("Unistore DBReader: Get", zap.String("key", hex.EncodeToString(key)), zap.Uint64("startTS", startTS), zap.Error(err))
 		return nil, errors.Trace(err)
 	}
 	if item == nil {
+		log.Info("Unistore DBReader: Get", zap.String("key", hex.EncodeToString(key)), zap.Uint64("startTS", startTS), zap.String("value", "<not found>"))
 		return nil, nil
 	}
-	return item.Value()
+
+	value, err := item.Value()
+	log.Info("Unistore DBReader: Get", zap.String("key", hex.EncodeToString(key)), zap.Uint64("startTS", startTS), zap.String("value", hex.EncodeToString(value)), zap.Error(err))
+	return value, err
 }
 
 // GetIter returns the *badger.Iterator of a *DBReader.
@@ -152,21 +160,35 @@ type BatchGetFunc = func(key, value []byte, err error)
 // BatchGet batch gets keys.
 func (r *DBReader) BatchGet(keys [][]byte, startTS uint64, f BatchGetFunc) {
 	r.txn.SetReadTS(startTS)
+	keysStr := ""
+	for _, k := range keys {
+		keysStr += hex.EncodeToString(k) + ", "
+	}
 	items, err := r.txn.MultiGet(keys)
 	if err != nil {
+		log.Info("Unistore DBReader: BatchGet", zap.String("key", keysStr), zap.Uint64("startTS", startTS), zap.Error(err))
 		for _, key := range keys {
 			f(key, nil, err)
 		}
 		return
 	}
+	valuesStr := ""
 	for i, item := range items {
 		key := keys[i]
 		var val []byte
 		if item != nil {
 			val, err = item.Value()
+			if err != nil {
+				valuesStr += hex.EncodeToString(val) + ", "
+			} else {
+				valuesStr += "<err:" + err.Error() + ">, "
+			}
+		} else {
+			valuesStr += "<not found>, "
 		}
 		f(key, val, err)
 	}
+	log.Info("Unistore DBReader: BatchGet", zap.String("key", keysStr), zap.Uint64("startTS", startTS), zap.String("value", valuesStr))
 }
 
 // ErrScanBreak is returned by ScanFunc to break the scan loop.
@@ -215,6 +237,8 @@ func (r *DBReader) Scan(startKey, endKey []byte, limit int, startTS uint64, proc
 				return errors.Trace(err)
 			}
 		}
+		log.Info("Unistore DBReader: Scan found key", zap.String("startKey", hex.EncodeToString(startKey)), zap.String("endKey", hex.EncodeToString(endKey)), zap.Int("limit", limit), zap.Uint64("startTS", startTS),
+			zap.String("foundKey", hex.EncodeToString(key)), zap.String("value", hex.EncodeToString(val)))
 		err = proc.Process(key, val)
 		if err != nil {
 			if err == ErrScanBreak {
@@ -274,6 +298,8 @@ func (r *DBReader) ReverseScan(startKey, endKey []byte, limit int, startTS uint6
 				return errors.Trace(err)
 			}
 		}
+		log.Info("Unistore DBReader: ReverseScan found key", zap.String("startKey", hex.EncodeToString(startKey)),zap.String("endKey", hex.EncodeToString(endKey)), zap.Int("limit", limit), zap.Uint64("startTS", startTS),
+			zap.String("foundKey", hex.EncodeToString(key)), zap.String("value", hex.EncodeToString(val)))
 		err = proc.Process(key, val)
 		if err != nil {
 			if err == ErrScanBreak {

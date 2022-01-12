@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"os"
@@ -769,6 +770,8 @@ func (store *MVCCStore) prewriteMutations(reqCtx *requestCtx, mutations []*kvrpc
 
 	batch := store.dbWriter.NewWriteBatch(req.StartVersion, 0, reqCtx.rpcCtx)
 
+	prewriteContent := ""
+
 	for i, m := range mutations {
 		if m.Op == kvrpcpb.Op_CheckNotExists {
 			continue
@@ -777,8 +780,10 @@ func (store *MVCCStore) prewriteMutations(reqCtx *requestCtx, mutations []*kvrpc
 		if err1 != nil {
 			return err1
 		}
+		prewriteContent += fmt.Sprintf("{key: %v, lock: %#v}, ", hex.EncodeToString(m.Key), lock)
 		batch.Prewrite(m.Key, lock)
 	}
+	log.Info("Prewrite executed", zap.Stringer("request", req), zap.String("data", prewriteContent))
 
 	return store.dbWriter.Write(batch)
 }
@@ -800,6 +805,8 @@ func (store *MVCCStore) tryOnePC(reqCtx *requestCtx, mutations []*kvrpcpb.Mutati
 	store.updateLatestTS(minCommitTS)
 	batch := store.dbWriter.NewWriteBatch(req.StartVersion, minCommitTS, reqCtx.rpcCtx)
 
+	content := ""
+
 	for i, m := range mutations {
 		if m.Op == kvrpcpb.Op_CheckNotExists {
 			continue
@@ -810,8 +817,12 @@ func (store *MVCCStore) tryOnePC(reqCtx *requestCtx, mutations []*kvrpcpb.Mutati
 		}
 		// batch.Commit will panic if the key is not locked. So there need to be a special function
 		// for it to commit without deleting lock.
+		content += fmt.Sprintf("{key: %v, lock: %#v}, ", hex.EncodeToString(m.Key), lock)
 		batch.Commit(m.Key, lock)
 	}
+
+	log.Info("1PC executed", zap.Stringer("request", req), zap.String("data", content))
+
 
 	if err := store.dbWriter.Write(batch); err != nil {
 		return false, err
@@ -949,6 +960,8 @@ func (store *MVCCStore) Commit(req *requestCtx, keys [][]byte, startTS, commitTS
 	regCtx.AcquireLatches(hashVals)
 	defer regCtx.ReleaseLatches(hashVals)
 
+	content := ""
+
 	var buf []byte
 	var tmpDiff int
 	var isPessimisticTxn bool
@@ -994,9 +1007,12 @@ func (store *MVCCStore) Commit(req *requestCtx, keys [][]byte, startTS, commitTS
 		}
 		isPessimisticTxn = lock.ForUpdateTS > 0
 		tmpDiff += len(key) + len(lock.Value)
+
+		content += fmt.Sprintf("{key: %v, lock: %#v}, ", hex.EncodeToString(key), lock)
 		batch.Commit(key, &lock)
 	}
 	atomic.AddInt64(regCtx.Diff(), int64(tmpDiff))
+	log.Info("commit executed", zap.Uint64("startTS", startTS), zap.Uint64("commitTS", commitTS), zap.String("data", content))
 	err := store.dbWriter.Write(batch)
 	store.lockWaiterManager.WakeUp(startTS, commitTS, hashVals)
 	if isPessimisticTxn {
@@ -1297,6 +1313,7 @@ func (store *MVCCStore) ResolveLock(reqCtx *requestCtx, lockKeys [][]byte, start
 	regCtx.AcquireLatches(hashVals)
 	defer regCtx.ReleaseLatches(hashVals)
 
+	content := ""
 	var buf []byte
 	var tmpDiff int
 	for _, lockKey := range lockKeys {
@@ -1310,12 +1327,15 @@ func (store *MVCCStore) ResolveLock(reqCtx *requestCtx, lockKeys [][]byte, start
 		}
 		if commitTS > 0 {
 			tmpDiff += len(lockKey) + len(lock.Value)
+			content += fmt.Sprintf("Commit:{key: %v, lock: %#v}, ", hex.EncodeToString(lockKey), lock)
 			batch.Commit(lockKey, &lock)
 		} else {
+			content += fmt.Sprintf("Rollback:{key: %v, lock: %#v}, ", hex.EncodeToString(lockKey), lock)
 			batch.Rollback(lockKey, true)
 		}
 	}
 	atomic.AddInt64(regCtx.Diff(), int64(tmpDiff))
+	log.Info("ResolveLock executed", zap.Uint64("startTS", startTS), zap.Uint64("commitTS", commitTS), zap.String("data", content))
 	err := store.dbWriter.Write(batch)
 	return err
 }
