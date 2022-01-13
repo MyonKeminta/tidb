@@ -1136,7 +1136,11 @@ func (e *IndexLookUpRunTimeStats) Tp() int {
 	return execdetails.TpIndexLookUpRunTimeStats
 }
 
+var compareDataId int32 = 1
+
 func (w *tableWorker) compareData(ctx context.Context, task *lookupTableTask, tableReader Executor) error {
+	opid := atomic.AddInt32(&compareDataId, 1)
+	logutil.BgLogger().Info("compareData: Start", zap.Int32("opid", opid))
 	chk := newFirstChunk(tableReader)
 	tblInfo := w.idxLookup.table.Meta()
 	vals := make([]types.Datum, 0, len(w.idxTblCols))
@@ -1176,10 +1180,16 @@ func (w *tableWorker) compareData(ctx context.Context, task *lookupTableTask, ta
 	}
 
 	for {
+		rangesStr := ""
+		for _, r := range tableReader.(*TableReaderExecutor).kvRanges {
+			rangesStr += "{" + r.StartKey.String() + ", " + r.EndKey.String() + "}, "
+		}
+		logutil.BgLogger().Info("compareData: Next", zap.Int32("opid", opid), zap.String("ranges", rangesStr), zap.Uint64("startTS", tableReader.(*TableReaderExecutor).startTS))
 		err := Next(ctx, tableReader, chk)
 		if err != nil {
 			return errors.Trace(err)
 		}
+		logutil.BgLogger().Info("compareData: Next returned", zap.Int32("opid", opid), zap.String("ranges", rangesStr), zap.Uint64("startTS", tableReader.(*TableReaderExecutor).startTS), zap.Int("rows", chk.NumRows()))
 		if chk.NumRows() == 0 {
 			task.indexOrder.Range(func(h kv.Handle, val interface{}) bool {
 				idxRow := task.idxRows.GetRow(val.(int))
