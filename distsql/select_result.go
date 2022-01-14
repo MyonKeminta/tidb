@@ -157,6 +157,7 @@ type selectResult struct {
 }
 
 func (r *selectResult) fetchResp(ctx context.Context) error {
+	opid, _ := ctx.Value("opid").(int32)
 	defer func() {
 		if r.stats != nil {
 			coprCacheHistogramHit.Observe(float64(r.stats.CoprCacheHitNum))
@@ -192,6 +193,7 @@ func (r *selectResult) fetchResp(ctx context.Context) error {
 		r.respChkIdx = 0
 		startTime := time.Now()
 		resultSubset, err := r.resp.Next(ctx)
+		logutil.BgLogger().Info("selectResult.fetchResp: r.resp.Next", zap.Int32("opid", opid), zap.Bool("resultSubsetNotNil", resultSubset != nil),  zap.Error(err))
 		duration := time.Since(startTime)
 		r.fetchDuration += duration
 		if err != nil {
@@ -257,9 +259,12 @@ func (r *selectResult) fetchResp(ctx context.Context) error {
 }
 
 func (r *selectResult) Next(ctx context.Context, chk *chunk.Chunk) error {
+	opid, _ := ctx.Value("opid").(int32)
 	chk.Reset()
+	logutil.BgLogger().Info("selectResult: Next invoked", zap.Int32("opid", opid), zap.Stringer("selectResp", r.selectResp))
 	if r.selectResp == nil || r.respChkIdx == len(r.selectResp.Chunks) {
 		err := r.fetchResp(ctx)
+		logutil.BgLogger().Info("selectResult: Next: fetchResp returned", zap.Int32("opid", opid), zap.Stringer("selectResp", r.selectResp), zap.Error(err))
 		if err != nil {
 			return err
 		}

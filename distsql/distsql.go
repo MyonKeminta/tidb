@@ -149,6 +149,13 @@ func Select(ctx context.Context, sctx sessionctx.Context, kvReq *kv.Request, fie
 // which can help selectResult to collect runtime stats.
 func SelectWithRuntimeStats(ctx context.Context, sctx sessionctx.Context, kvReq *kv.Request,
 	fieldTypes []*types.FieldType, fb *statistics.QueryFeedback, copPlanIDs []int, rootPlanID int) (SelectResult, error) {
+	opid, _ := ctx.Value("opid").(int32)
+	rangesStr := ""
+	for _, r := range kvReq.KeyRanges {
+		rangesStr += "{" + r.StartKey.String() + ", " + r.EndKey.String() + "}, "
+	}
+	logutil.BgLogger().Info("SelectWithRuntimeStats: Select executed", zap.Int32("opid", opid), zap.Int64("reqType", kvReq.Tp), zap.Uint64("reqStartTs", kvReq.StartTs),
+		zap.String("startKey",  rangesStr))
 	sr, err := Select(ctx, sctx, kvReq, fieldTypes, fb)
 	if err != nil {
 		return nil, err

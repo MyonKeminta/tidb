@@ -995,6 +995,8 @@ type tableWorker struct {
 	*checkIndexValue
 }
 
+var compareDataId int32 = 1
+
 // pickAndExecTask picks tasks from workCh, and execute them.
 func (w *tableWorker) pickAndExecTask(ctx context.Context) {
 	var task *lookupTableTask
@@ -1020,8 +1022,12 @@ func (w *tableWorker) pickAndExecTask(ctx context.Context) {
 		case <-w.finished:
 			return
 		}
+
+		opid := atomic.AddInt32(&compareDataId, 1)
+		ctx1 := context.WithValue(ctx, "opid", opid)
+
 		startTime := time.Now()
-		err := w.executeTask(ctx, task)
+		err := w.executeTask(ctx1, task)
 		if w.idxLookup.stats != nil {
 			atomic.AddInt64(&w.idxLookup.stats.TableRowScan, int64(time.Since(startTime)))
 			atomic.AddInt64(&w.idxLookup.stats.TableTaskNum, 1)
@@ -1136,10 +1142,9 @@ func (e *IndexLookUpRunTimeStats) Tp() int {
 	return execdetails.TpIndexLookUpRunTimeStats
 }
 
-var compareDataId int32 = 1
 
 func (w *tableWorker) compareData(ctx context.Context, task *lookupTableTask, tableReader Executor) error {
-	opid := atomic.AddInt32(&compareDataId, 1)
+	opid, _ := ctx.Value("opid").(int32)
 	logutil.BgLogger().Info("compareData: Start", zap.Int32("opid", opid))
 	chk := newFirstChunk(tableReader)
 	tblInfo := w.idxLookup.table.Meta()

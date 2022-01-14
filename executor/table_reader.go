@@ -35,6 +35,7 @@ import (
 	"github.com/pingcap/tidb/util/ranger"
 	"github.com/pingcap/tidb/util/stringutil"
 	"github.com/pingcap/tipb/go-tipb"
+	"go.uber.org/zap"
 )
 
 // make sure `TableReaderExecutor` implements `Executor`.
@@ -218,9 +219,11 @@ func (e *TableReaderExecutor) Open(ctx context.Context) error {
 // Next fills data into the chunk passed by its caller.
 // The task was actually done by tableReaderHandler.
 func (e *TableReaderExecutor) Next(ctx context.Context, req *chunk.Chunk) error {
+	opid, _ := ctx.Value("opid").(int32)
 	if e.table.Meta() != nil && e.table.Meta().TempTableType != model.TempTableNone {
 		// Treat temporary table as dummy table, avoid sending distsql request to TiKV.
 		req.Reset()
+		logutil.BgLogger().Info("TableReaderExecutor: Next returns because of temp table", zap.Int32("opid", opid))
 		return nil
 	}
 
@@ -235,6 +238,7 @@ func (e *TableReaderExecutor) Next(ctx context.Context, req *chunk.Chunk) error 
 		e.feedback.Invalidate()
 		return err
 	}
+	logutil.BgLogger().Info("TableReaderExecutor: nextChunk returned", zap.Int32("opid", opid), zap.Int("rows", req.NumRows()))
 
 	err := FillVirtualColumnValue(e.virtualColumnRetFieldTypes, e.virtualColumnIndex, e.schema, e.columns, e.ctx, req)
 	if err != nil {
@@ -426,7 +430,9 @@ func (tr *tableResultHandler) open(optionalResult, result distsql.SelectResult) 
 }
 
 func (tr *tableResultHandler) nextChunk(ctx context.Context, chk *chunk.Chunk) error {
+	opid, _ := ctx.Value("opid").(int32)
 	if !tr.optionalFinished {
+		logutil.BgLogger().Info("TableReaderExecutor: !optionalFinished", zap.Int32("opid", opid))
 		err := tr.optionalResult.Next(ctx, chk)
 		if err != nil {
 			return err
@@ -436,6 +442,8 @@ func (tr *tableResultHandler) nextChunk(ctx context.Context, chk *chunk.Chunk) e
 		}
 		tr.optionalFinished = true
 	}
+
+	logutil.BgLogger().Info("TableReaderExecutor: tr.result.Next", zap.Int32("opid", opid))
 	return tr.result.Next(ctx, chk)
 }
 

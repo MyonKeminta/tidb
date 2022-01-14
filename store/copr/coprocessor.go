@@ -406,11 +406,13 @@ func (worker *copIteratorWorker) run(ctx context.Context) {
 		})
 		worker.wg.Done()
 	}()
+	opid, _ := ctx.Value("opid").(int32)
 	for task := range worker.taskCh {
 		respCh := worker.respChan
 		if respCh == nil {
 			respCh = task.respChan
 		}
+		logutil.BgLogger().Info("copIteratorWorker.run: handleTask", zap.Int32("opid", opid), zap.Stringer("ranges", task.ranges))
 		worker.handleTask(ctx, task, respCh)
 		if worker.respChan != nil {
 			// When a task is finished by the worker, send a finCopResp into channel to notify the copIterator that
@@ -491,6 +493,7 @@ func (sender *copIteratorTaskSender) run() {
 }
 
 func (it *copIterator) recvFromRespCh(ctx context.Context, respCh <-chan *copResponse) (resp *copResponse, ok bool, exit bool) {
+	opid, _ := ctx.Value("opid").(int32)
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -509,6 +512,7 @@ func (it *copIterator) recvFromRespCh(ctx context.Context, respCh <-chan *copRes
 			}
 			return
 		case <-it.finishCh:
+			logutil.BgLogger().Info("recvFromRespCh: finishCh received", zap.Int32("opid", opid))
 			exit = true
 			return
 		case <-ticker.C:
@@ -518,6 +522,7 @@ func (it *copIterator) recvFromRespCh(ctx context.Context, respCh <-chan *copRes
 				return
 			}
 		case <-ctx.Done():
+			logutil.BgLogger().Info("recvFromRespCh: ctx.Done", zap.Int32("opid", opid))
 			// We select the ctx.Done() in the thread of `Next` instead of in the worker to avoid the cost of `WithCancel`.
 			if atomic.CompareAndSwapUint32(&it.closed, 0, 1) {
 				close(it.finishCh)
@@ -563,6 +568,7 @@ const MockResponseSizeForTest = 100 * 1024 * 1024
 // Next returns next coprocessor result.
 // NOTE: Use nil to indicate finish, so if the returned ResultSubset is not nil, reader should continue to call Next().
 func (it *copIterator) Next(ctx context.Context) (kv.ResultSubset, error) {
+	opid, _ := ctx.Value("opid").(int32)
 	var (
 		resp   *copResponse
 		ok     bool
@@ -591,9 +597,16 @@ func (it *copIterator) Next(ctx context.Context) (kv.ResultSubset, error) {
 	})
 	// If data order matters, response should be returned in the same order as copTask slice.
 	// Otherwise all responses are returned from a single channel.
+	logutil.BgLogger().Info("copIterator.Next", zap.Int32("opid", opid), zap.Bool("keepOrder", it.respChan != nil))
 	if it.respChan != nil {
 		// Get next fetched resp from chan
+		logutil.BgLogger().Info("copIterator.Next: recvFromRespCh", zap.Int32("opid", opid), zap.Bool("keepOrder", it.respChan != nil), zap.Int("it.curr", it.curr))
 		resp, ok, closed = it.recvFromRespCh(ctx, it.respChan)
+		var pbResp *coprocessor.Response = nil
+		if resp != nil {
+			pbResp = resp.pbResp
+		}
+		logutil.BgLogger().Info("copIterator.Next: recvFromRespCh returned", zap.Int32("opid", opid), zap.Bool("keepOrder", it.respChan != nil), zap.Int("it.curr", it.curr), zap.Stringer("pb", pbResp), zap.Bool("ok", ok), zap.Bool("closed", closed))
 		if !ok || closed {
 			it.actionOnExceed.close()
 			return nil, nil

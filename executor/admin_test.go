@@ -1249,6 +1249,8 @@ func TestCheckFailReport(t *testing.T) {
 
 	*/
 
+	tk.MustExec(tk.ctx, "set @@tidb_index_lookup_concurrency = 1")
+
 	// handle match but value is different for plain key
 	for i := 0; i < 1000; i++ {
 		logutil.BgLogger().Info("--------- iterate start", zap.Int("round", i))
