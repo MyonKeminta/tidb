@@ -29,7 +29,6 @@ import (
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/parser/model"
-	util2 "github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/memory"
 	"github.com/pingcap/tidb/util/trxevents"
 	tikvstore "github.com/tikv/client-go/v2/kv"
@@ -517,24 +516,27 @@ func (rr *KeyRanges) TotalRangeNum() int {
 //   - There's only one chance to update it (the purpose is to avoid the complexity of handling the case when multiple
 //     threads want to update it concurrently).
 type RefreshableReadTS struct {
-	mu        sync.RWMutex
-	tsFuture  oracle.Future
-	initialTS uint64
+	mu sync.RWMutex
 
-	sealed atomic.Bool
+	tsState struct {
+		future  oracle.Future
+		isReady atomic.Bool
+		mu      sync.Mutex
+		result  uint64
+		error   error
+	}
+
+	initialTS uint64
+	sealed    atomic.Bool
 }
 
 func NewRefreshableReadTS(initialValue uint64) *RefreshableReadTS {
-	return &RefreshableReadTS{
-		tsFuture:  util2.ConstantFuture(initialValue),
+	res := &RefreshableReadTS{
 		initialTS: initialValue,
 	}
-}
-
-func NewRefreshableReadTSFromFuture(tsFuture oracle.Future) *RefreshableReadTS {
-	return &RefreshableReadTS{
-		tsFuture: tsFuture,
-	}
+	res.tsState.result = initialValue
+	res.tsState.isReady.Store(true)
+	return res
 }
 
 func (t *RefreshableReadTS) Seal() *RefreshableReadTS {
@@ -559,43 +561,44 @@ func (t *RefreshableReadTS) GetForNonRead() (uint64, error) {
 
 func (t *RefreshableReadTS) getImpl() (uint64, error) {
 	t.mu.RLock()
-	var ts uint64
-	var err error
-	if _, ok := t.tsFuture.(util2.ConstantFuture); ok {
-		ts, err = t.tsFuture.Wait()
-	} else {
-		// Only record wait time when it's really necessary to wait.
-		// TODO: Add metrics here.
-		// TODO: Return the statistics in some way so user can find the wait time for diagnosis purpose.
-		ts, err = t.tsFuture.Wait()
+	defer t.mu.RUnlock()
+
+	if !t.tsState.isReady.Load() {
+		t.wait()
 	}
-	t.mu.RUnlock()
-	return ts, err
+	return t.tsState.result, t.tsState.error
+}
+
+func (t *RefreshableReadTS) wait() {
+	t.tsState.mu.Lock()
+	defer t.tsState.mu.Unlock()
+	if t.tsState.isReady.Load() {
+		return
+	}
+	t.tsState.isReady.Store(true)
+	// t.tsState.future should be called at most once.
+	t.tsState.result, t.tsState.error = t.tsState.future.Wait()
 }
 
 func (t *RefreshableReadTS) EqualsToConstant(anotherTS uint64) bool {
-	tsFuture := t.getInnerFuture()
+	_, ts, _ := t.getInner()
 
-	if _, ok := tsFuture.(util2.ConstantFuture); ok {
-		ts, err := tsFuture.Wait()
-		if err != nil {
-			panic(err)
-		}
+	if ts != 0 {
 		return ts == anotherTS
 	}
+
 	return false
 }
 
-func (t *RefreshableReadTS) GetInnerForTest() oracle.Future {
-	return t.getInnerFuture()
-}
-
-func (t *RefreshableReadTS) getInnerFuture() oracle.Future {
-	var tsFuture oracle.Future
+func (t *RefreshableReadTS) getInner() (oracle.Future, uint64, error) {
 	t.mu.RLock()
-	tsFuture = t.tsFuture
-	t.mu.RUnlock()
-	return tsFuture
+	defer t.mu.RUnlock()
+	if t.tsState.isReady.Load() {
+		return nil, t.tsState.result, t.tsState.error
+	}
+	// Other threads may call Wait on the future, but the pointer to the future won't be changed if t.mu is not WLocked,
+	// so there won't be data race.
+	return t.tsState.future, 0, nil
 }
 
 func (t *RefreshableReadTS) TryRefreshWithOracle(ctx context.Context, tsOracle oracle.Oracle, scope string) bool {
@@ -614,58 +617,44 @@ func (t *RefreshableReadTS) TryRefreshWithOracle(ctx context.Context, tsOracle o
 	// accesses, so we can guarantee the time of allocating the new timestamp is strictly later than any other `Get`
 	// operations called previously. This is why the function accepts the oracle as the argument instead of allowing
 	// the caller to get an oracle.Future by itself and pass it in.
-	t.tsFuture = NewMultiAccessTSFuture(tsOracle.GetTimestampAsync(ctx, &oracle.Option{TxnScope: scope}))
+
+	// No one would touch t.tsState if t.mu is w-locked.
+	t.tsState.future = tsOracle.GetTimestampAsync(ctx, &oracle.Option{TxnScope: scope})
+	t.tsState.isReady.Store(false)
+	t.tsState.result, t.tsState.error = 0, nil
+
 	t.Seal()
 
 	return true
 }
 
 func (t *RefreshableReadTS) CheckIsEquivalentForTest(rhs *RefreshableReadTS) bool {
+	// TODO: Find a better way to do this check and remove this function.
 	if t == rhs {
 		return true
 	}
 	if t.sealed.Load() && rhs.sealed.Load() {
-		var selfValue, rhsValue util2.ConstantFuture
-		var ok bool
-		if selfValue, ok = t.getInnerFuture().(util2.ConstantFuture); !ok {
-			return false
-		}
-		if rhsValue, ok = rhs.getInnerFuture().(util2.ConstantFuture); !ok {
-			return false
-		}
-		return uint64(selfValue) == uint64(rhsValue)
+		_, selfValue, _ := t.getInner()
+		_, rhsValue, _ := rhs.getInner()
+		return selfValue == rhsValue
 	}
 	return false
 }
 
 func (t *RefreshableReadTS) String() string {
-	tsFuture := t.getInnerFuture()
+	_, ts, err := t.getInner()
 
-	if value, ok := tsFuture.(util2.ConstantFuture); ok {
-		return strconv.FormatUint(uint64(value), 10)
+	if ts == t.initialTS {
+		return strconv.FormatUint(uint64(ts), 10)
 	} else {
-		return fmt.Sprintf("(future, initial value: %v)", t.initialTS)
+		currStateStr := "(future)"
+		if err != nil {
+			currStateStr = fmt.Sprintf("(error: %s)", err.Error())
+		} else if ts != 0 {
+			currStateStr = strconv.FormatUint(ts, 10)
+		}
+		return fmt.Sprintf("%v -> %v", t.initialTS, currStateStr)
 	}
-}
-
-type MultiAccessTSFuture struct {
-	once   sync.Once
-	inner  oracle.Future
-	result uint64
-	error  error
-}
-
-func NewMultiAccessTSFuture(inner oracle.Future) *MultiAccessTSFuture {
-	return &MultiAccessTSFuture{
-		inner: inner,
-	}
-}
-
-func (f *MultiAccessTSFuture) Wait() (uint64, error) {
-	f.once.Do(func() {
-		f.result, f.error = f.inner.Wait()
-	})
-	return f.result, f.error
 }
 
 // Request represents a kv request.
