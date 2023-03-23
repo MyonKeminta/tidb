@@ -19,7 +19,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -642,19 +641,20 @@ func (t *RefreshableReadTS) CheckIsEquivalentForTest(rhs *RefreshableReadTS) boo
 }
 
 func (t *RefreshableReadTS) String() string {
-	_, ts, err := t.getInner()
-
-	if ts == t.initialTS {
-		return strconv.FormatUint(uint64(ts), 10)
-	} else {
-		currStateStr := "(future)"
-		if err != nil {
-			currStateStr = fmt.Sprintf("(error: %s)", err.Error())
-		} else if ts != 0 {
-			currStateStr = strconv.FormatUint(ts, 10)
-		}
-		return fmt.Sprintf("%v -> %v", t.initialTS, currStateStr)
-	}
+	//_, ts, err := t.getInner()
+	//
+	//if ts == t.initialTS {
+	//	return strconv.FormatUint(uint64(ts), 10)
+	//} else {
+	//	currStateStr := "(future)"
+	//	if err != nil {
+	//		currStateStr = fmt.Sprintf("(error: %s)", err.Error())
+	//	} else if ts != 0 {
+	//		currStateStr = strconv.FormatUint(ts, 10)
+	//	}
+	//	return fmt.Sprintf("%v -> %v", t.initialTS, currStateStr)
+	//}
+	return fmt.Sprintf("%v -> ?", t.initialTS)
 }
 
 // Request represents a kv request.
