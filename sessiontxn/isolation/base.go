@@ -198,7 +198,7 @@ func (p *baseTxnContextProvider) GetStmtForUpdateTS() (*kv.RefreshableReadTS, er
 	}
 
 	if snapshotTS := p.sctx.GetSessionVars().SnapshotTS; snapshotTS != 0 {
-		return kv.NewRefreshableReadTS(snapshotTS).Seal(), nil
+		return kv.NewRefreshableReadTS(snapshotTS).ToSealed(), nil
 	}
 	return p.getStmtForUpdateTSFunc()
 }
@@ -278,7 +278,7 @@ func (p *baseTxnContextProvider) getTxnStartTSAsRefreshableReadTS() (*kv.Refresh
 	if err != nil {
 		return nil, err
 	}
-	return kv.NewRefreshableReadTS(ts).Seal(), err
+	return kv.NewRefreshableReadTS(ts).ToSealed(), err
 }
 
 // ActivateTxn activates the transaction and set the relevant context variables.

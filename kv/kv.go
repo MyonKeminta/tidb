@@ -509,6 +509,14 @@ func (rr *KeyRanges) TotalRangeNum() int {
 	return ret
 }
 
+type refreshableTSState = uint32
+
+const (
+	refreshableTSStateInitial refreshableTSState = iota
+	refreshableTSStateRefreshing
+	refreshableTSStateSealed
+)
+
 // RefreshableReadTS is a container of a timestamp that's allowed to update even it's already passed around among many
 // modules. Some restrictions are applied to protect the consistency of reading:
 //   - Once the value of the ts is used (by calling `Get` method), further updating will be disallowed.
@@ -526,7 +534,7 @@ type RefreshableReadTS struct {
 	}
 
 	initialTS uint64
-	sealed    atomic.Bool
+	state     atomic.Uint32
 }
 
 func NewRefreshableReadTS(initialValue uint64) *RefreshableReadTS {
@@ -535,12 +543,29 @@ func NewRefreshableReadTS(initialValue uint64) *RefreshableReadTS {
 	}
 	res.tsState.result = initialValue
 	res.tsState.isReady.Store(true)
+	res.state.Store(refreshableTSStateInitial)
 	return res
 }
 
-func (t *RefreshableReadTS) Seal() *RefreshableReadTS {
-	t.sealed.Store(true)
+func (t *RefreshableReadTS) ToSealed() *RefreshableReadTS {
+	oldState := t.state.Swap(refreshableTSStateSealed)
+	if oldState == refreshableTSStateRefreshing {
+		panic("trying to force-seal a refreshable ts when it's refreshing in progress")
+	}
 	return t
+}
+
+func (t *RefreshableReadTS) trySeal() bool {
+	currentValue := t.state.Load()
+	switch currentValue {
+	case refreshableTSStateSealed:
+		return true
+	case refreshableTSStateRefreshing:
+		return false
+	case refreshableTSStateInitial:
+		return t.state.CompareAndSwap(refreshableTSStateInitial, refreshableTSStateSealed)
+	}
+	panic(fmt.Sprintf("unexpected state of RefreshableReadTS: %v", currentValue))
 }
 
 func (t *RefreshableReadTS) GetInitialValue() uint64 {
@@ -549,7 +574,10 @@ func (t *RefreshableReadTS) GetInitialValue() uint64 {
 
 func (t *RefreshableReadTS) Get() (uint64, error) {
 	//logutil.BgLogger().Info("RefreshableReadTS.Get called", zap.Stringer("self", t), zap.Stack("stack"))
-	t.Seal()
+	if t.trySeal() && t.tsState.isReady.Load() {
+		// Lock-free fast path
+		return t.tsState.result, t.tsState.error
+	}
 	return t.getImpl()
 }
 
@@ -622,7 +650,7 @@ func (t *RefreshableReadTS) TryRefreshWithOracle(ctx context.Context, tsOracle o
 	t.tsState.isReady.Store(false)
 	t.tsState.result, t.tsState.error = 0, nil
 
-	t.Seal()
+	t.ToSealed()
 
 	return true
 }

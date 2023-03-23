@@ -71,7 +71,7 @@ func (p *StalenessTxnContextProvider) GetReadReplicaScope() string {
 
 // GetStmtReadTS returns the read timestamp
 func (p *StalenessTxnContextProvider) GetStmtReadTS() (*kv.RefreshableReadTS, error) {
-	return kv.NewRefreshableReadTS(p.ts).Seal(), nil
+	return kv.NewRefreshableReadTS(p.ts).ToSealed(), nil
 }
 
 // GetStmtForUpdateTS will return an error because stale read does not support it

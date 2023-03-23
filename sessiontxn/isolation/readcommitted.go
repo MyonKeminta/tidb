@@ -343,7 +343,7 @@ func (p *PessimisticRCTxnContextProvider) AdviseOptimizeWithPlan(val interface{}
 		})
 		p.checkTSInWriteStmt = true
 		p.stmtTSFuture = func() (*kv.RefreshableReadTS, error) {
-			return kv.NewRefreshableReadTS(p.latestOracleTS).Seal(), nil
+			return kv.NewRefreshableReadTS(p.latestOracleTS).ToSealed(), nil
 		}
 	}
 

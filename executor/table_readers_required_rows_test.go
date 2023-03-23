@@ -127,7 +127,7 @@ func buildTableReader(sctx sessionctx.Context) Executor {
 		table:            &tables.TableCommon{},
 		dagPB:            buildMockDAGRequest(sctx),
 		selectResultHook: selectResultHook{mockSelectResult},
-		readTS:           kv.NewRefreshableReadTS(0).Seal(),
+		readTS:           kv.NewRefreshableReadTS(0).ToSealed(),
 	}
 	return e
 }
@@ -203,7 +203,7 @@ func buildIndexReader(sctx sessionctx.Context) Executor {
 		dagPB:            buildMockDAGRequest(sctx),
 		index:            &model.IndexInfo{},
 		selectResultHook: selectResultHook{mockSelectResult},
-		readTS:           kv.NewRefreshableReadTS(0).Seal(),
+		readTS:           kv.NewRefreshableReadTS(0).ToSealed(),
 	}
 	return e
 }
