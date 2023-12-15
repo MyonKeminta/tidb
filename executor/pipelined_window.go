@@ -24,7 +24,9 @@ import (
 	"github.com/pingcap/tidb/planner/core"
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/util/chunk"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/mathutil"
+	"go.uber.org/zap"
 )
 
 type dataInfo struct {
@@ -208,6 +210,7 @@ func (e *PipelinedWindowExec) fetchChild(ctx context.Context) (EOF bool, err err
 	childResult := tryNewCacheChunk(e.children[0])
 	err = Next(ctx, e.children[0], childResult)
 	if err != nil {
+		logutil.Logger(ctx).Info("PipelinedWindowExec failed", zap.Error(err))
 		return false, errors.Trace(err)
 	}
 	// No more data.

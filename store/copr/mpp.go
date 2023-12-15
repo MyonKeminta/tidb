@@ -490,7 +490,8 @@ func (m *mppIterator) nextImpl(ctx context.Context) (resp *mppResponse, ok bool,
 			return
 		case <-ticker.C:
 			if m.vars != nil && m.vars.Killed != nil && atomic.LoadUint32(m.vars.Killed) == 1 {
-				err = derr.ErrQueryInterrupted
+
+				err = errors.Trace(derr.ErrQueryInterrupted)
 				exit = true
 				return
 			}

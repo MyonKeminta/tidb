@@ -113,7 +113,7 @@ func ToTiDBErr(err error) error {
 	}
 
 	if stderrs.Is(err, tikverr.ErrQueryInterrupted) {
-		return ErrQueryInterrupted
+		return ErrQueryInterrupted.GenWithStackByArgs()
 	}
 
 	if stderrs.Is(err, tikverr.ErrTiKVServerBusy) {

@@ -776,7 +776,7 @@ func (it *copIterator) recvFromRespCh(ctx context.Context, respCh <-chan *copRes
 			return
 		case <-ticker.C:
 			if atomic.LoadUint32(it.vars.Killed) == 1 {
-				resp = &copResponse{err: derr.ErrQueryInterrupted}
+				resp = &copResponse{err: errors.Trace(derr.ErrQueryInterrupted)}
 				ok = true
 				return
 			}

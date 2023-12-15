@@ -766,7 +766,7 @@ func (b *batchCopIterator) recvFromRespCh(ctx context.Context) (resp *batchCopRe
 			return
 		case <-ticker.C:
 			if atomic.LoadUint32(b.vars.Killed) == 1 {
-				resp = &batchCopResponse{err: derr.ErrQueryInterrupted}
+				resp = &batchCopResponse{err: errors.Trace(derr.ErrQueryInterrupted)}
 				ok = true
 				return
 			}
