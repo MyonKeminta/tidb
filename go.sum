@@ -85,8 +85,8 @@ github.com/Masterminds/semver/v3 v3.1.1 h1:hLg3sBzpNErnxhQtUy/mmLR2I9foDujNK030I
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=
 github.com/Masterminds/sprig/v3 v3.2.2 h1:17jRggJu518dr3QaafizSXOjKYp94wKfABxUmyxvxX8=
 github.com/Masterminds/sprig/v3 v3.2.2/go.mod h1:UoaO7Yp8KlPnJIYWTFkMaqPUYKTfGFPhxNuwnnxkKlk=
-github.com/MyonKeminta/client-go/v2 v2.0.0-20231222101016-a85f1d6e9618 h1:bVQzNccAB6NgF0pBJKukmrtR0P4XmybStfDuOIPhqk0=
-github.com/MyonKeminta/client-go/v2 v2.0.0-20231222101016-a85f1d6e9618/go.mod h1:0W23EJEJejgM/75ZhMaRLokR/OMlGymyGrB2/gvfuvs=
+github.com/MyonKeminta/client-go/v2 v2.0.0-20240115055850-e8f28e7e9067 h1:voFiQwmEHlqkaJzp5S1HlKem22F2L4REshrgSgEE+6Q=
+github.com/MyonKeminta/client-go/v2 v2.0.0-20240115055850-e8f28e7e9067/go.mod h1:0W23EJEJejgM/75ZhMaRLokR/OMlGymyGrB2/gvfuvs=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/OneOfOne/xxhash v1.2.5 h1:zl/OfRA6nftbBK9qTohYBJ5xvw6C/oNKizR7cZGl3cI=
 github.com/OneOfOne/xxhash v1.2.5/go.mod h1:eZbhyaAYD41SGSSsnmcpxVoRiQ/MPUTjUdIIOT9Um7Q=
