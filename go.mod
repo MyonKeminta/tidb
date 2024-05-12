@@ -292,7 +292,6 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
-	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240304212257-790db918fca8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda // indirect
@@ -320,3 +319,7 @@ replace (
 	sourcegraph.com/sourcegraph/appdash => github.com/sourcegraph/appdash v0.0.0-20190731080439-ebfcffb1b5c0
 	sourcegraph.com/sourcegraph/appdash-data => github.com/sourcegraph/appdash-data v0.0.0-20151005221446-73f23eafcf67
 )
+
+replace github.com/tikv/client-go/v2 => github.com/MyonKeminta/client-go/v2 v2.0.0-20240509171017-cce2fccc1207
+
+replace github.com/pingcap/kvproto => github.com/MyonKeminta/kvproto v0.0.0-20240425072900-18d57b8e4657
