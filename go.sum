@@ -853,8 +853,8 @@ github.com/Masterminds/semver/v3 v3.2.1 h1:RN9w6+7QoMeJVGyfmbcgs28Br8cvmnucEXnY0
 github.com/Masterminds/semver/v3 v3.2.1/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
 github.com/Masterminds/sprig/v3 v3.2.2 h1:17jRggJu518dr3QaafizSXOjKYp94wKfABxUmyxvxX8=
 github.com/Masterminds/sprig/v3 v3.2.2/go.mod h1:UoaO7Yp8KlPnJIYWTFkMaqPUYKTfGFPhxNuwnnxkKlk=
-github.com/MyonKeminta/client-go/v2 v2.0.0-20240509171017-cce2fccc1207 h1:x024cSOhN85vPiajK+SFp1z/PTW6BwEtaEI9TFYsPYQ=
-github.com/MyonKeminta/client-go/v2 v2.0.0-20240509171017-cce2fccc1207/go.mod h1:6148l+39waHNgLYojNWwVsIZ5klgUrhvwIzvP4fJ0ZE=
+github.com/MyonKeminta/client-go/v2 v2.0.0-20240513061206-a74645b933d2 h1:DDzBVSvto6l7lSSXvGEltKKDaWxyY9up1G2PWRCgSKw=
+github.com/MyonKeminta/client-go/v2 v2.0.0-20240513061206-a74645b933d2/go.mod h1:6148l+39waHNgLYojNWwVsIZ5klgUrhvwIzvP4fJ0ZE=
 github.com/MyonKeminta/kvproto v0.0.0-20240425072900-18d57b8e4657 h1:WehrZbBXr/K5yXzoMOqeuibcH7jdfxPCEs5IIFr889A=
 github.com/MyonKeminta/kvproto v0.0.0-20240425072900-18d57b8e4657/go.mod h1:rXxWk2UnwfUhLXha1jxRWPADw9eMZGWEWCg92Tgmb/8=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
