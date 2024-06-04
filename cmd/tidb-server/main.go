@@ -282,6 +282,9 @@ func main() {
 	err := metricsutil.RegisterMetrics()
 	terror.MustNil(err)
 
+	pd.FilterCutoffFreq = config.GetGlobalConfig().Performance.TSOStreamFilterCutoffFreq
+	pd.TSOStreamInjectDelay = config.GetGlobalConfig().Performance.TSOStreamInjectDelay
+
 	if variable.EnableTmpStorageOnOOM.Load() {
 		config.GetGlobalConfig().UpdateTempStoragePath()
 		err := disk.InitializeTempDir()
