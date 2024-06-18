@@ -77,6 +77,10 @@ type GCWorker struct {
 	cancel             context.CancelFunc
 	done               chan error
 	regionLockResolver tikv.RegionLockResolver
+
+	testStatistics struct {
+		deletePlacementRuleCounter int
+	}
 }
 
 // NewGCWorker creates a GCWorker instance.
@@ -1973,6 +1977,7 @@ func (w *GCWorker) doGCPlacementRules(se session.Session, safePoint uint64, dr u
 	for _, id := range physicalTableIDs {
 		// Delete pd rule
 		failpoint.Inject("gcDeletePlacementRuleCounter", func() {})
+		w.testStatistics.deletePlacementRuleCounter++
 		logutil.BgLogger().Info("try delete TiFlash pd rule",
 			zap.Int64("tableID", id), zap.String("endKey", string(dr.EndKey)), zap.Uint64("safePoint", safePoint))
 		ruleID := infosync.MakeRuleID(id)
