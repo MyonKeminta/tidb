@@ -77,6 +77,10 @@ type GCWorker struct {
 		scanLocks    func(key []byte, regionID uint64) []*txnlock.Lock
 		resolveLocks func(locks []*txnlock.Lock, regionID tikv.RegionVerID) (ok bool, err error)
 	}
+
+	testStatistics struct {
+		deletePlacementRuleCounter int
+	}
 }
 
 // NewGCWorker creates a GCWorker instance.
@@ -1917,6 +1921,7 @@ func (w *GCWorker) doGCPlacementRules(dr util.DelRangeTask) (err error) {
 
 	for _, id := range physicalTableIDs {
 		// Delete pd rule
+		w.testStatistics.deletePlacementRuleCounter++
 		logutil.BgLogger().Info("try delete TiFlash pd rule", zap.Int64("tableID", id), zap.String("endKey", string(dr.EndKey)))
 		ruleID := fmt.Sprintf("table-%v-r", id)
 		if err := infosync.DeleteTiFlashPlacementRule(context.Background(), "tiflash", ruleID); err != nil {
