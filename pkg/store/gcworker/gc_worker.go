@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1526,7 +1527,10 @@ func (w *GCWorker) doGCPlacementRules(se sessiontypes.Session, safePoint uint64,
 		if err = historyJob.DecodeArgs(&startKey, &physicalTableIDs); err != nil {
 			return
 		}
-		physicalTableIDs = append(physicalTableIDs, historyJob.TableID)
+		// Avoid duplication.
+		if historyJob.TableID != 0 && !slices.Contains(physicalTableIDs, historyJob.TableID) {
+			physicalTableIDs = append(physicalTableIDs, historyJob.TableID)
+		}
 	case model.ActionDropSchema, model.ActionDropTablePartition, model.ActionTruncateTablePartition,
 		model.ActionReorganizePartition, model.ActionRemovePartitioning,
 		model.ActionAlterTablePartitioning:

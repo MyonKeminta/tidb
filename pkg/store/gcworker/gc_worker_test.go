@@ -1393,14 +1393,6 @@ func TestGCPlacementRules(t *testing.T) {
 	}()
 
 	gcPlacementRuleCache := make(map[int64]any)
-	deletePlacementRuleCounter := 0
-	require.NoError(t, failpoint.EnableWith("github.com/pingcap/tidb/pkg/store/gcworker/gcDeletePlacementRuleCounter", "return", func() error {
-		deletePlacementRuleCounter++
-		return nil
-	}))
-	defer func() {
-		require.NoError(t, failpoint.Disable("github.com/pingcap/tidb/pkg/store/gcworker/gcDeletePlacementRuleCounter"))
-	}()
 
 	bundleID := "TiDB_DDL_10"
 	bundle, err := placement.NewBundleFromOptions(&model.PlacementSettings{
@@ -1417,12 +1409,14 @@ func TestGCPlacementRules(t *testing.T) {
 	require.NotNil(t, got)
 	require.False(t, got.IsEmpty())
 
+	require.Equal(t, 0, s.gcWorker.testStatistics.deletePlacementRuleCounter)
+
 	// do gc
 	dr := util.DelRangeTask{JobID: 1, ElementID: 10}
 	err = s.gcWorker.doGCPlacementRules(createSession(s.store), 1, dr, gcPlacementRuleCache)
 	require.NoError(t, err)
 	require.Equal(t, map[int64]any{10: struct{}{}}, gcPlacementRuleCache)
-	require.Equal(t, 1, deletePlacementRuleCounter)
+	require.Equal(t, 1, s.gcWorker.testStatistics.deletePlacementRuleCounter)
 
 	// check bundle deleted after gc
 	got, err = infosync.GetRuleBundle(context.Background(), bundleID)
@@ -1434,11 +1428,12 @@ func TestGCPlacementRules(t *testing.T) {
 	err = s.gcWorker.doGCPlacementRules(createSession(s.store), 1, dr, gcPlacementRuleCache)
 	require.NoError(t, err)
 	require.Equal(t, map[int64]any{10: struct{}{}}, gcPlacementRuleCache)
-	require.Equal(t, 1, deletePlacementRuleCounter)
+	require.Equal(t, 1, s.gcWorker.testStatistics.deletePlacementRuleCounter)
 }
 
 func TestIssue33069(t *testing.T) {
 	// Skip the step of waiting for syncing the safe point, to avoid the test running for too long.
+	// Recover it after the test.
 	oldValue := gcSafePointCacheInterval
 	gcSafePointCacheInterval = 0
 	defer func() {
@@ -1446,7 +1441,14 @@ func TestIssue33069(t *testing.T) {
 	}()
 
 	// Avoid the delete range tasks be cleared by the mocked delete range procedure.
+	// Recover it after the test.
+	isEmulatorGCEnabled := util.IsEmulatorGCEnable()
 	util.EmulatorGCDisable()
+	if isEmulatorGCEnabled {
+		defer func() {
+			util.EmulatorGCEnable()
+		}()
+	}
 
 	s := createGCWorkerSuite(t)
 
