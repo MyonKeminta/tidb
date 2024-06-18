@@ -1437,6 +1437,52 @@ func TestGCPlacementRules(t *testing.T) {
 	require.Equal(t, 1, deletePlacementRuleCounter)
 }
 
+func TestIssue33069(t *testing.T) {
+	// Skip the step of waiting for syncing the safe point, to avoid the test running for too long.
+	oldValue := gcSafePointCacheInterval
+	gcSafePointCacheInterval = 0
+	defer func() {
+		gcSafePointCacheInterval = oldValue
+	}()
+
+	// Avoid the delete range tasks be cleared by the mocked delete range procedure.
+	util.EmulatorGCDisable()
+
+	s := createGCWorkerSuite(t)
+
+	// Mock UnsafeDestroyRange API that does noop.
+	s.client.unsafeDestroyRangeHandler = func(addr string, req *tikvrpc.Request) (*tikvrpc.Response, error) {
+		// Do nothing but returning a successful response
+		return &tikvrpc.Response{Resp: &kvrpcpb.UnsafeDestroyRangeResponse{}}, nil
+	}
+
+	se := createSession(s.gcWorker.store)
+
+	// Simulate some deleted ranges
+	_, err := se.Execute(gcContext(), `create database db1`)
+	require.NoError(t, err)
+	_, err = se.Execute(gcContext(), `create table db1.t1 (a int)`)
+	require.NoError(t, err)
+	_, err = se.Execute(gcContext(), `create table db1.t2 (a int)`)
+	require.NoError(t, err)
+	_, err = se.Execute(gcContext(), `create table db1.t3 (a int)`)
+	require.NoError(t, err)
+	_, err = se.Execute(gcContext(), `drop database db1`)
+	require.NoError(t, err)
+
+	// Advance time to 30m later.
+	s.oracle.AddOffset(time.Minute * 30)
+
+	beforeCounter := s.gcWorker.testStatistics.deletePlacementRuleCounter
+	ts, err := s.gcWorker.store.CurrentVersion(kv.GlobalTxnScope)
+	safePoint := oracle.GoTimeToTS(oracle.GetTimeFromTS(ts.Ver).Add(-time.Minute * 10))
+	require.NoError(t, err)
+	err = s.gcWorker.runGCJob(context.Background(), safePoint, 1)
+	require.NoError(t, err)
+	afterCounter := s.gcWorker.testStatistics.deletePlacementRuleCounter
+	require.Equal(t, 3, afterCounter-beforeCounter)
+}
+
 func TestGCLabelRules(t *testing.T) {
 	s := createGCWorkerSuite(t)
 
