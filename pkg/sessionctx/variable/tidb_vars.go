@@ -1159,6 +1159,8 @@ const (
 	// The value can be STANDARD, BULK.
 	// Currently, the BULK mode only affects auto-committed DML.
 	TiDBDMLType = "tidb_dml_type"
+
+	TiDBTSOClientConcurrencyFactor = "tidb_tso_client_concurrency_factor"
 )
 
 // TiDB intentional limits
@@ -1167,7 +1169,8 @@ const (
 const (
 	// MaxConfigurableConcurrency is the maximum number of "threads" (goroutines) that can be specified
 	// for any type of configuration item that has concurrent workers.
-	MaxConfigurableConcurrency = 256
+	MaxConfigurableConcurrency    = 256
+	MaxTSOClientConcurrencyFactor = 16
 )
 
 // Default TiDB system variable values.
@@ -1489,6 +1492,7 @@ const (
 	DefTiDBDMLType                                    = "STANDARD"
 	DefGroupConcatMaxLen                              = uint64(1024)
 	DefDefaultWeekFormat                              = "0"
+	DefTiDBTSOClientConcurrencyFactor                 = 4
 )
 
 // Process global variables.

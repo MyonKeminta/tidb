@@ -755,8 +755,7 @@ type Performance struct {
 	// ConcurrentlyInitStats indicates whether to use concurrency to init stats.
 	ConcurrentlyInitStats bool `toml:"concurrently-init-stats" json:"concurrently-init-stats"`
 
-	TSOStreamFilterCutoffFreq float64       `toml:"tso-stream-filter-cutoff-freq" json:"tso-stream-filter-cutoff-freq"`
-	TSOStreamInjectDelay      time.Duration `toml:"tso-stream-inject-delay" json:"tso-stream-inject-delay"`
+	TSOStreamFilterCutoffFreq float64 `toml:"tso-stream-filter-cutoff-freq" json:"tso-stream-filter-cutoff-freq"`
 }
 
 // PlanCache is the PlanCache section of the config.
@@ -1026,7 +1025,6 @@ var defaultConf = Config{
 		ForceInitStats:                    true,
 		ConcurrentlyInitStats:             true,
 		TSOStreamFilterCutoffFreq:         1,
-		TSOStreamInjectDelay:              0,
 	},
 	ProxyProtocol: ProxyProtocol{
 		Networks:      "",

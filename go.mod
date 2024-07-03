@@ -323,7 +323,7 @@ replace (
 	github.com/dgrijalva/jwt-go => github.com/form3tech-oss/jwt-go v3.2.6-0.20210809144907-32ab6a8243d7+incompatible
 	github.com/go-ldap/ldap/v3 => github.com/YangKeao/ldap/v3 v3.4.5-0.20230421065457-369a3bab1117
 	github.com/pingcap/tidb/pkg/parser => ./pkg/parser
-	github.com/tikv/pd/client => github.com/MyonKeminta/pd/client v0.0.0-20240604063246-c0de78e13790
+	github.com/tikv/pd/client => github.com/MyonKeminta/pd/client v0.0.0-20240703052301-d25a8c8b991d
 
 	// TODO: `sourcegraph.com/sourcegraph/appdash` has been archived, and the original host has been removed.
 	// Please remove these dependencies.

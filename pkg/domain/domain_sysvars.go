@@ -79,6 +79,21 @@ func (do *Domain) setPDClientDynamicOption(name, sVal string) error {
 			return err
 		}
 		variable.EnablePDFollowerHandleRegion.Store(val)
+	case variable.TiDBTSOClientConcurrencyFactor:
+		val, err := strconv.ParseInt(sVal, 10, 64)
+		if err != nil {
+			return err
+		}
+		if val < 1 {
+			val = 1
+		} else if val > 16 {
+			val = 16
+		}
+
+		err = do.updatePDClient(pd.TSOClientConcurrencyFactor, int(val))
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -3206,6 +3206,11 @@ var defaultSysVars = []*SysVar{
 		},
 		IsHintUpdatableVerified: true,
 	},
+	{Scope: ScopeGlobal, Name: TiDBTSOClientConcurrencyFactor, Value: strconv.Itoa(DefTiDBTSOClientConcurrencyFactor), Type: TypeUnsigned, MinValue: 1, MaxValue: MaxTSOClientConcurrencyFactor,
+		SetGlobal: func(_ context.Context, s *SessionVars, val string) error {
+			return (*SetPDClientDynamicOption.Load())(TiDBTSOClientConcurrencyFactor, val)
+		},
+	},
 }
 
 // GlobalSystemVariableInitialValue gets the default value for a system variable including ones that are dynamically set (e.g. based on the store)
