@@ -3206,7 +3206,7 @@ var defaultSysVars = []*SysVar{
 		},
 		IsHintUpdatableVerified: true,
 	},
-	{Scope: ScopeGlobal, Name: TiDBTSOClientConcurrencyFactor, Value: strconv.Itoa(DefTiDBTSOClientConcurrencyFactor), Type: TypeUnsigned, MinValue: 1, MaxValue: MaxTSOClientConcurrencyFactor,
+	{Scope: ScopeGlobal, Name: TiDBTSOClientConcurrencyFactor, Value: strconv.Itoa(DefTiDBTSOClientConcurrencyFactor), Type: TypeUnsigned, MinValue: 0, MaxValue: MaxTSOClientConcurrencyFactor,
 		SetGlobal: func(_ context.Context, s *SessionVars, val string) error {
 			return (*SetPDClientDynamicOption.Load())(TiDBTSOClientConcurrencyFactor, val)
 		},

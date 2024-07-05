@@ -84,8 +84,8 @@ func (do *Domain) setPDClientDynamicOption(name, sVal string) error {
 		if err != nil {
 			return err
 		}
-		if val < 1 {
-			val = 1
+		if val < 0 {
+			val = 0
 		} else if val > 16 {
 			val = 16
 		}
