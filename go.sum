@@ -78,6 +78,8 @@ github.com/Masterminds/semver/v3 v3.2.1 h1:RN9w6+7QoMeJVGyfmbcgs28Br8cvmnucEXnY0
 github.com/Masterminds/semver/v3 v3.2.1/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
 github.com/Masterminds/sprig/v3 v3.2.2 h1:17jRggJu518dr3QaafizSXOjKYp94wKfABxUmyxvxX8=
 github.com/Masterminds/sprig/v3 v3.2.2/go.mod h1:UoaO7Yp8KlPnJIYWTFkMaqPUYKTfGFPhxNuwnnxkKlk=
+github.com/MyonKeminta/pd/client v0.0.0-20240710093432-4fdb1a6550d1 h1:u2pgZMF4YazHeEvzs0oNwSuhTcjq7luatjxWJVu7cq0=
+github.com/MyonKeminta/pd/client v0.0.0-20240710093432-4fdb1a6550d1/go.mod h1:FaQnRpX8ZXMR8pih4xNdNxqDrwZvpu7GMsJKDZyF9pk=
 github.com/Shopify/sarama v1.29.0 h1:ARid8o8oieau9XrHI55f/L3EoRAhm9px6sonbD7yuUE=
 github.com/Shopify/sarama v1.29.0/go.mod h1:2QpgD79wpdAESqNQMxNc0KYMkycd4slxGdV3TWSVqrU=
 github.com/Shopify/toxiproxy v2.1.4+incompatible h1:TKdv8HiTLgE5wdJuEML90aBgNWsokNbMijUGhmcoBJc=
@@ -848,8 +850,6 @@ github.com/tidwall/btree v1.7.0 h1:L1fkJH/AuEh5zBnnBbmTwQ5Lt+bRJ5A8EWecslvo9iI=
 github.com/tidwall/btree v1.7.0/go.mod h1:twD9XRA5jj9VUQGELzDO4HPQTNJsoWWfYEL+EUQ2cKY=
 github.com/tikv/client-go/v2 v2.0.8-0.20240516031922-38e0dca30c8c h1:/bmadPQjII5T6EZBYIMnq1cbhfADzFOCtfCMZsCcFuw=
 github.com/tikv/client-go/v2 v2.0.8-0.20240516031922-38e0dca30c8c/go.mod h1:/4cCrzN6+KY2U5JeR72TllnJTtA5hm9yI6zqlNrvJUo=
-github.com/tikv/pd/client v0.0.0-20240430080403-1679dbca25b3 h1:1MReqAoXNPyTarVZ3cihghWrmczF6yj+tmBLkj7g9Oc=
-github.com/tikv/pd/client v0.0.0-20240430080403-1679dbca25b3/go.mod h1:FaQnRpX8ZXMR8pih4xNdNxqDrwZvpu7GMsJKDZyF9pk=
 github.com/timakin/bodyclose v0.0.0-20240125160201-f835fa56326a h1:A6uKudFIfAEpoPdaal3aSqGxBzLyU8TqyXImLwo6dIo=
 github.com/timakin/bodyclose v0.0.0-20240125160201-f835fa56326a/go.mod h1:mkjARE7Yr8qU23YcGMSALbIxTQ9r9QBVahQOBRfU460=
 github.com/tklauser/go-sysconf v0.3.9/go.mod h1:11DU/5sG7UexIrp/O6g35hrWzu0JxlwQ3LSFUzyeuhs=
