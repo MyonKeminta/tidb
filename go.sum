@@ -78,8 +78,8 @@ github.com/Masterminds/semver/v3 v3.2.1 h1:RN9w6+7QoMeJVGyfmbcgs28Br8cvmnucEXnY0
 github.com/Masterminds/semver/v3 v3.2.1/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
 github.com/Masterminds/sprig/v3 v3.2.2 h1:17jRggJu518dr3QaafizSXOjKYp94wKfABxUmyxvxX8=
 github.com/Masterminds/sprig/v3 v3.2.2/go.mod h1:UoaO7Yp8KlPnJIYWTFkMaqPUYKTfGFPhxNuwnnxkKlk=
-github.com/MyonKeminta/pd/client v0.0.0-20240718103438-a24e36c63305 h1:T15OdcxUlChaye/SYUwvS127alP2hlx3w2qmqgXMj/o=
-github.com/MyonKeminta/pd/client v0.0.0-20240718103438-a24e36c63305/go.mod h1:IGN35sZ88KIVN9+WP0iCV7VAa8AZZY9DQf6wIaN8Wjo=
+github.com/MyonKeminta/pd/client v0.0.0-20240722075223-b787252a4de5 h1:hdLIpxJxWZ42gkvFdQpdycyxiAXgw7RCUZHfwr8yGZo=
+github.com/MyonKeminta/pd/client v0.0.0-20240722075223-b787252a4de5/go.mod h1:IGN35sZ88KIVN9+WP0iCV7VAa8AZZY9DQf6wIaN8Wjo=
 github.com/Shopify/sarama v1.29.0 h1:ARid8o8oieau9XrHI55f/L3EoRAhm9px6sonbD7yuUE=
 github.com/Shopify/sarama v1.29.0/go.mod h1:2QpgD79wpdAESqNQMxNc0KYMkycd4slxGdV3TWSVqrU=
 github.com/Shopify/toxiproxy v2.1.4+incompatible h1:TKdv8HiTLgE5wdJuEML90aBgNWsokNbMijUGhmcoBJc=
