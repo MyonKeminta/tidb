@@ -32,6 +32,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/keyspacepb"
 	rmpb "github.com/pingcap/kvproto/pkg/resource_manager"
 	"github.com/pingcap/log"
 	"github.com/pingcap/tidb/pkg/config"
@@ -781,6 +782,10 @@ func (is *InfoSyncer) StoreTopologyInfo(ctx context.Context) error {
 	return is.updateTopologyAliveness(ctx)
 }
 
+func isKeyspaceUsingKeyspaceLevelGC(keyspaceMeta *keyspacepb.KeyspaceMeta) bool {
+	return keyspaceMeta != nil && keyspaceMeta.Config != nil && keyspaceMeta.Config["gc_management_type"] == "keyspace_level"
+}
+
 // GetMinStartTS get min start timestamp.
 // Export for testing.
 func (is *InfoSyncer) GetMinStartTS() uint64 {
@@ -796,7 +801,7 @@ func (is *InfoSyncer) getEtcdClientForMinStartTS() *clientv3.Client {
 		return is.unprefixedEtcdCli
 	}
 
-	if pd.IsKeyspaceUsingKeyspaceLevelGC(is.tikvCodec.GetKeyspaceMeta()) {
+	if isKeyspaceUsingKeyspaceLevelGC(is.tikvCodec.GetKeyspaceMeta()) {
 		return is.etcdCli
 	}
 	return is.unprefixedEtcdCli
